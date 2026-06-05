@@ -142,27 +142,35 @@ with tab2:
     st.dataframe(st.session_state.tasks, use_container_width=True, hide_index=True)
 
 # ==========================================
-# TAB 3: Employee Management
+# TAB 3: Employee Management (100% Fixed File Uploader & Camera)
 # ==========================================
 with tab3:
     st.markdown("### 👥 සේවක කළමනාකරණය (Employee Profiles)")
     
     # --- Add New Employee ---
     with st.expander("➕ අලුත් සේවකයෙක් ඇතුලත් කරන්න (Add New Employee)", expanded=True):
-        st.info("💡 පින්තූරය Upload වී පෙරදසුන (Preview) පෙනෙන තුරු සිට 'Save' බොත්තම ඔබන්න.")
-        col1, col2, col3 = st.columns([2, 2, 2])
-        with col1:
+        st.info("💡 පින්තූරය තේරූ පසු හෝ කැමරාවෙන් ගත් පසු '✅ පින්තූරය සාර්ථකව ලෝඩ් විය!' ලෙස වැටෙන තුරු රැඳී සිටින්න.")
+        
+        col_n1, col_n2 = st.columns(2)
+        with col_n1:
             emp_name = st.text_input("සේවකයාගේ නම (Name):", key="new_emp_name")
-        with col2:
+        with col_n2:
             emp_phone = st.text_input("දුරකථන අංකය (Phone):", key="new_emp_phone")
-        with col3:
+            
+        st.markdown("**පින්තූරය ලබාදෙන ආකාරය තෝරන්න:**")
+        upload_method = st.radio("Upload Method", ["ගැලරියෙන් තෝරන්න (Gallery)", "කැමරාවෙන් ගන්න (Camera)"], horizontal=True, label_visibility="collapsed")
+        
+        if upload_method == "ගැලරියෙන් තෝරන්න (Gallery)":
             emp_photo = st.file_uploader("පින්තූරය (Photo):", type=["jpg", "png", "jpeg"], key="new_emp_photo")
-            if emp_photo is not None:
-                st.image(emp_photo, width=120, caption="Preview")
-                
+        else:
+            emp_photo = st.camera_input("කැමරාවෙන් පින්තූරයක් ගන්න (Take a Photo)", key="new_emp_cam")
+            
+        if emp_photo is not None:
+            st.success("✅ පින්තූරය සාර්ථකව ලෝඩ් විය! (Image Loaded Successfully)")
+            st.image(emp_photo, width=150, caption="Preview (පෙරදසුන)")
+            
         if st.button("සේවකයා සේව් කරන්න (Save Employee)", type="primary"):
             if emp_name:
-                # FIXED: Using getvalue() instead of read()
                 photo_bytes = emp_photo.getvalue() if emp_photo else None
                 try:
                     conn = sqlite3.connect('factory_data.db')
@@ -204,18 +212,25 @@ with tab3:
             col_img1, col_img2 = st.columns(2)
             with col_img1:
                 if curr_photo:
-                    st.write("දැනට ඇති පින්තූරය:")
+                    st.write("**දැනට ඇති පින්තූරය:**")
                     st.image(curr_photo, width=150)
                 else:
-                    st.write("දැනට පින්තූරයක් නැත.")
+                    st.info("දැනට පින්තූරයක් නැත.")
                     
             with col_img2:
-                upd_photo = st.file_uploader("අලුත් පින්තූරයක් දානවා නම් තෝරන්න (New Photo):", type=["jpg", "png", "jpeg"])
+                st.markdown("**අලුත් පින්තූරයක් දානවා නම් තෝරන්න:**")
+                edit_method = st.radio("Edit Upload Method", ["ගැලරියෙන් තෝරන්න", "කැමරාවෙන් ගන්න"], horizontal=True, key=f"rad_{emp_id}", label_visibility="collapsed")
+                
+                if edit_method == "ගැලරියෙන් තෝරන්න":
+                    upd_photo = st.file_uploader("අලුත් පින්තූරය:", type=["jpg", "png", "jpeg"], key=f"upd_file_{emp_id}")
+                else:
+                    upd_photo = st.camera_input("කැමරාවෙන් ගන්න", key=f"upd_cam_{emp_id}")
+                    
                 if upd_photo is not None:
-                    st.image(upd_photo, width=150, caption="Preview (පෙරදසුන)")
+                    st.success("✅ අලුත් පින්තූරය සාර්ථකව ලෝඩ් විය!")
+                    st.image(upd_photo, width=150, caption="New Preview (අලුත් පෙරදසුන)")
             
-            if st.button("Update (වෙනස්කම් සේව් කරන්න)", key="update_emp_btn"):
-                # FIXED: Using getvalue() instead of read()
+            if st.button("Update (වෙනස්කම් සේව් කරන්න)", key="update_emp_btn", type="primary"):
                 new_photo_bytes = upd_photo.getvalue() if upd_photo else curr_photo
                 try:
                     conn = sqlite3.connect('factory_data.db')
@@ -503,14 +518,24 @@ with tab8:
     with st.expander("➕ අලුත් භාණ්ඩයක් ඇතුලත් කරන්න (Add New Product)"):
         new_prod_name = st.text_input("භාණ්ඩයේ නම:")
         new_prod_price = st.number_input("මිල (Rs):", min_value=0.0, value=1000.0)
-        new_prod_photo = st.file_uploader("පින්තූරය තෝරන්න:", type=["jpg", "png", "jpeg"])
         
-        if st.button("Save Product"):
+        st.markdown("**පින්තූරය ලබාදෙන ආකාරය තෝරන්න:**")
+        prod_method = st.radio("Product Upload Method", ["ගැලරියෙන් තෝරන්න (Gallery)", "කැමරාවෙන් ගන්න (Camera)"], horizontal=True, label_visibility="collapsed")
+        
+        if prod_method == "ගැලරියෙන් තෝරන්න (Gallery)":
+            new_prod_photo = st.file_uploader("පින්තූරය තෝරන්න:", type=["jpg", "png", "jpeg"], key="prod_up")
+        else:
+            new_prod_photo = st.camera_input("කැමරාවෙන් පින්තූරයක් ගන්න:", key="prod_cam")
+            
+        if new_prod_photo is not None:
+            st.success("✅ පින්තූරය සාර්ථකව ලෝඩ් විය!")
+            st.image(new_prod_photo, width=150)
+            
+        if st.button("Save Product", type="primary"):
             if new_prod_name:
                 st.session_state.products.append({
                     'name': new_prod_name,
                     'price': new_prod_price,
-                    # FIXED: Using getvalue() instead of read()
                     'image': new_prod_photo.getvalue() if new_prod_photo else None
                 })
                 st.success("සාර්ථකව එකතු කරන ලදී!")
