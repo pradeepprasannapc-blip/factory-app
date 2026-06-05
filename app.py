@@ -142,14 +142,14 @@ with tab2:
     st.dataframe(st.session_state.tasks, use_container_width=True, hide_index=True)
 
 # ==========================================
-# TAB 3: Employee Management (Preview Fixed)
+# TAB 3: Employee Management
 # ==========================================
 with tab3:
     st.markdown("### 👥 සේවක කළමනාකරණය (Employee Profiles)")
     
     # --- Add New Employee ---
     with st.expander("➕ අලුත් සේවකයෙක් ඇතුලත් කරන්න (Add New Employee)", expanded=True):
-        st.info("💡 පින්තූරය Upload වී අවසන් වී පෙරදසුන (Preview) පෙනෙන තුරු සිට 'Save' බොත්තම ඔබන්න.")
+        st.info("💡 පින්තූරය Upload වී පෙරදසුන (Preview) පෙනෙන තුරු සිට 'Save' බොත්තම ඔබන්න.")
         col1, col2, col3 = st.columns([2, 2, 2])
         with col1:
             emp_name = st.text_input("සේවකයාගේ නම (Name):", key="new_emp_name")
@@ -162,7 +162,8 @@ with tab3:
                 
         if st.button("සේවකයා සේව් කරන්න (Save Employee)", type="primary"):
             if emp_name:
-                photo_bytes = emp_photo.read() if emp_photo else None
+                # FIXED: Using getvalue() instead of read()
+                photo_bytes = emp_photo.getvalue() if emp_photo else None
                 try:
                     conn = sqlite3.connect('factory_data.db')
                     c = conn.cursor()
@@ -178,7 +179,7 @@ with tab3:
 
     st.markdown("---")
     
-    # --- Edit Existing Employee (Form removed for live preview) ---
+    # --- Edit Existing Employee ---
     st.markdown("#### ✏️ සේවක විස්තර වෙනස් කිරීම (Edit Profiles)")
     conn = sqlite3.connect('factory_data.db')
     emps_df = pd.read_sql_query("SELECT id, name, phone FROM employees", conn)
@@ -213,9 +214,9 @@ with tab3:
                 if upd_photo is not None:
                     st.image(upd_photo, width=150, caption="Preview (පෙරදසුන)")
             
-            # Button is outside the form now
             if st.button("Update (වෙනස්කම් සේව් කරන්න)", key="update_emp_btn"):
-                new_photo_bytes = upd_photo.read() if upd_photo else curr_photo
+                # FIXED: Using getvalue() instead of read()
+                new_photo_bytes = upd_photo.getvalue() if upd_photo else curr_photo
                 try:
                     conn = sqlite3.connect('factory_data.db')
                     c = conn.cursor()
@@ -487,6 +488,36 @@ with tab7:
 with tab8:
     st.markdown("### ⚙️ Factory Data Control Panel")
     
+    # --- Manage Products ---
+    st.markdown("#### 📸 භාණ්ඩ හා මාදිලි වෙනස් කිරීම (Manage Products)")
+    if len(st.session_state.products) > 0:
+        for i, p in enumerate(st.session_state.products):
+            c1, c2, c3 = st.columns([3, 2, 1])
+            with c1: st.write(f"**{p['name']}** - Rs. {p['price']:,}")
+            with c2: st.caption("✅ Photo Loaded" if p['image'] is not None else "❌ No Photo")
+            with c3:
+                if st.button("Delete", key=f"del_prod_{i}"):
+                    st.session_state.products.pop(i)
+                    st.rerun()
+                    
+    with st.expander("➕ අලුත් භාණ්ඩයක් ඇතුලත් කරන්න (Add New Product)"):
+        new_prod_name = st.text_input("භාණ්ඩයේ නම:")
+        new_prod_price = st.number_input("මිල (Rs):", min_value=0.0, value=1000.0)
+        new_prod_photo = st.file_uploader("පින්තූරය තෝරන්න:", type=["jpg", "png", "jpeg"])
+        
+        if st.button("Save Product"):
+            if new_prod_name:
+                st.session_state.products.append({
+                    'name': new_prod_name,
+                    'price': new_prod_price,
+                    # FIXED: Using getvalue() instead of read()
+                    'image': new_prod_photo.getvalue() if new_prod_photo else None
+                })
+                st.success("සාර්ථකව එකතු කරන ලදී!")
+                st.rerun()
+
+    st.markdown("---")
+
     st.markdown("#### 📋 Update Piece Rates (කාණ්ඩ අනුව මිල ගණන්)")
     unique_categories = st.session_state.tasks['Category (කාණ්ඩය)'].unique()
     edited_task_dfs = []
