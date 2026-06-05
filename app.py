@@ -102,14 +102,14 @@ if not st.session_state.price_confirmed:
         st.rerun()
 
 # ==========================================
-# Navigation Tabs (දැන් Tabs 8 ක් ඇත - පඩිපත සමඟ)
+# Navigation Tabs
 # ==========================================
 tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
     "🛍️ භාණ්ඩ", 
     "📋 කුලී", 
     "👥 සේවකයන්",
     "💰 දෛනික වැටුප", 
-    "🧾 මාසික පඩිපත",
+    "🧾 පඩිපත",
     "🗄️ ඉතිහාසය", 
     "📊 වියදම්/ලාභ", 
     "⚙️ සැකසුම්"
@@ -142,42 +142,93 @@ with tab2:
     st.dataframe(st.session_state.tasks, use_container_width=True, hide_index=True)
 
 # ==========================================
-# TAB 3: Employee Management (Preview සමඟ)
+# TAB 3: Employee Management (Add, Edit, View)
 # ==========================================
 with tab3:
     st.markdown("### 👥 සේවක කළමනාකරණය (Employee Profiles)")
-    st.write("සේවකයන්ගේ විස්තර සහ පින්තූර මෙහි ඇතුලත් කරන්න. පින්තූරය තේරූ සැනින් ඔබට එය බලාගත හැක.")
     
-    col1, col2, col3 = st.columns([2, 2, 2])
-    with col1:
-        emp_name = st.text_input("සේවකයාගේ නම (Name):")
-    with col2:
-        emp_phone = st.text_input("දුරකථන අංකය (Phone):")
-    with col3:
-        emp_photo = st.file_uploader("පින්තූරය (Photo):", type=["jpg", "png", "jpeg"])
-        # පින්තූරය තේරූ සැනින් Preview එක පෙන්වීම
-        if emp_photo is not None:
-            st.image(emp_photo, width=150, caption="Preview (පෙරදසුන)")
-            
-    if st.button("➕ සේවකයා ඇතුලත් කරන්න", type="primary"):
-        if emp_name:
-            photo_bytes = emp_photo.read() if emp_photo else None
-            try:
-                conn = sqlite3.connect('factory_data.db')
-                c = conn.cursor()
-                c.execute("INSERT INTO employees (name, phone, photo) VALUES (?, ?, ?)", (emp_name, emp_phone, photo_bytes))
-                conn.commit()
-                conn.close()
-                st.success(f"{emp_name} සාර්ථකව පද්ධතියට ඇතුලත් කරන ලදී!")
-                st.rerun()
-            except sqlite3.IntegrityError:
-                st.error("මෙම නම ඇති සේවකයෙක් දැනටමත් සිටී. වෙනත් නමක් ලබා දෙන්න.")
-        else:
-            st.error("කරුණාකර සේවකයාගේ නම ඇතුලත් කරන්න.")
+    # --- Add New Employee ---
+    with st.expander("➕ අලුත් සේවකයෙක් ඇතුලත් කරන්න (Add New Employee)", expanded=True):
+        st.info("💡 පින්තූරය Upload වී අවසන් වී පෙරදසුන (Preview) පෙනෙන තුරු සිට 'Save' බොත්තම ඔබන්න.")
+        col1, col2, col3 = st.columns([2, 2, 2])
+        with col1:
+            emp_name = st.text_input("සේවකයාගේ නම (Name):", key="new_emp_name")
+        with col2:
+            emp_phone = st.text_input("දුරකථන අංකය (Phone):", key="new_emp_phone")
+        with col3:
+            emp_photo = st.file_uploader("පින්තූරය (Photo):", type=["jpg", "png", "jpeg"], key="new_emp_photo")
+            if emp_photo is not None:
+                st.image(emp_photo, width=120, caption="Preview")
                 
+        if st.button("සේවකයා සේව් කරන්න (Save Employee)", type="primary"):
+            if emp_name:
+                photo_bytes = emp_photo.read() if emp_photo else None
+                try:
+                    conn = sqlite3.connect('factory_data.db')
+                    c = conn.cursor()
+                    c.execute("INSERT INTO employees (name, phone, photo) VALUES (?, ?, ?)", (emp_name, emp_phone, photo_bytes))
+                    conn.commit()
+                    conn.close()
+                    st.success(f"{emp_name} සාර්ථකව ඇතුලත් කරන ලදී!")
+                    st.rerun()
+                except sqlite3.IntegrityError:
+                    st.error("මෙම නම ඇති සේවකයෙක් දැනටමත් සිටී. වෙනත් නමක් ලබා දෙන්න.")
+            else:
+                st.error("කරුණාකර සේවකයාගේ නම ඇතුලත් කරන්න.")
+
     st.markdown("---")
-    st.markdown("#### 🧑‍🤝‍🧑 දැනට සිටින සේවක ලැයිස්තුව")
     
+    # --- Edit Existing Employee ---
+    st.markdown("#### ✏️ සේවක විස්තර වෙනස් කිරීම (Edit Profiles)")
+    conn = sqlite3.connect('factory_data.db')
+    emps_df = pd.read_sql_query("SELECT id, name, phone FROM employees", conn)
+    conn.close()
+    
+    if not emps_df.empty:
+        edit_emp_name = st.selectbox("වෙනස් කළ යුතු සේවකයා තෝරන්න:", ["තෝරන්න (Select)"] + emps_df['name'].tolist())
+        
+        if edit_emp_name != "තෝරන්න (Select)":
+            conn = sqlite3.connect('factory_data.db')
+            c = conn.cursor()
+            c.execute("SELECT id, name, phone, photo FROM employees WHERE name=?", (edit_emp_name,))
+            emp_data = c.fetchone()
+            conn.close()
+            
+            emp_id, curr_name, curr_phone, curr_photo = emp_data
+            
+            with st.form("edit_emp_form"):
+                st.write(f"**{curr_name} ගේ විස්තර යාවත්කාලීන කරන්න**")
+                upd_name = st.text_input("අලුත් නම (New Name):", value=curr_name)
+                upd_phone = st.text_input("අලුත් දුරකථන අංකය (New Phone):", value=curr_phone if curr_phone else "")
+                
+                if curr_photo:
+                    st.write("දැනට ඇති පින්තූරය:")
+                    st.image(curr_photo, width=100)
+                    
+                upd_photo = st.file_uploader("අලුත් පින්තූරයක් දානවා නම් තෝරන්න (New Photo):", type=["jpg", "png", "jpeg"])
+                
+                if st.form_submit_button("Update (වෙනස්කම් සේව් කරන්න)"):
+                    new_photo_bytes = upd_photo.read() if upd_photo else curr_photo
+                    try:
+                        conn = sqlite3.connect('factory_data.db')
+                        c = conn.cursor()
+                        c.execute("UPDATE employees SET name=?, phone=?, photo=? WHERE id=?", (upd_name, upd_phone, new_photo_bytes, emp_id))
+                        # නම වෙනස් කරා නම් ඉතිහාසයේ පරණ නම් ඔක්කොමත් අප්ඩේට් කිරීම
+                        if upd_name != curr_name:
+                            c.execute("UPDATE daily_wages SET employee_name=? WHERE employee_name=?", (upd_name, curr_name))
+                        conn.commit()
+                        conn.close()
+                        st.success("සාර්ථකව වෙනස් කරන ලදී!")
+                        st.rerun()
+                    except sqlite3.IntegrityError:
+                        st.error("මෙම නම ඇති වෙනත් සේවකයෙක් දැනටමත් සිටී.")
+    else:
+        st.info("වෙනස් කිරීමට සේවකයන් කිසිවෙකු නැත.")
+
+    st.markdown("---")
+    
+    # --- View Employees List ---
+    st.markdown("#### 🧑‍🤝‍🧑 දැනට සිටින සේවක ලැයිස්තුව")
     conn = sqlite3.connect('factory_data.db')
     c = conn.cursor()
     c.execute("SELECT id, name, phone, photo FROM employees")
@@ -273,7 +324,7 @@ with tab4:
                     st.rerun()
 
 # ==========================================
-# TAB 5: Monthly Payslip (මාසික පඩිපත - අලුත් අංශය)
+# TAB 5: Monthly Payslip
 # ==========================================
 with tab5:
     st.markdown("### 🧾 මාසික පඩිපත (Monthly Payslip)")
@@ -287,7 +338,7 @@ with tab5:
         with col_p2:
             slip_month = st.selectbox("මාසය:", ["01 - ජනවාරි (Jan)", "02 - පෙබරවාරි (Feb)", "03 - මාර්තු (Mar)", "04 - අප්‍රේල් (Apr)", "05 - මැයි (May)", "06 - ජූනි (Jun)", "07 - ජූලි (Jul)", "08 - අගෝස්තු (Aug)", "09 - සැප්තැම්බර් (Sep)", "10 - ඔක්තෝබර් (Oct)", "11 - නොවැම්බර් (Nov)", "12 - දෙසැම්බර් (Dec)"])
         with col_p3:
-            slip_year = st.selectbox("අවුරුද්ද:", [2024, 2025, 2026, 2027], index=2) # Default 2026
+            slip_year = st.selectbox("අවුරුද්ද:", [2024, 2025, 2026, 2027], index=2)
 
         month_num = slip_month.split(" - ")[0]
         target_prefix = f"{slip_year}-{month_num}"
