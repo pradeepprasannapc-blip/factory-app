@@ -2,25 +2,6 @@ import streamlit as st
 import pandas as pd
 import sqlite3
 from datetime import datetime
-import io
-from PIL import Image
-
-# ==========================================
-# Image Compression Function (සයිස් එක අඩු කිරීම)
-# ==========================================
-def get_compressed_image(upload_obj):
-    if upload_obj is None:
-        return None
-    try:
-        img = Image.open(upload_obj)
-        if img.mode in ("RGBA", "P"):
-            img = img.convert("RGB")
-        img.thumbnail((300, 300)) # කුඩා සයිස් එකකට වෙනස් කිරීම
-        buf = io.BytesIO()
-        img.save(buf, format="JPEG", quality=75)
-        return buf.getvalue()
-    except Exception as e:
-        return upload_obj.getvalue()
 
 # ==========================================
 # Database Setup
@@ -173,6 +154,7 @@ with tab1:
 # ==========================================
 with tab2:
     st.markdown("### 📋 Work Category & Piece Rates")
+    
     categories = ['All (සියල්ල)'] + list(st.session_state.tasks['Category (කාණ්ඩය)'].unique())
     selected_cat = st.selectbox("කාණ්ඩය අනුව පෙරන්න (Filter by Category):", categories)
     
@@ -191,7 +173,7 @@ with tab3:
     
     # --- Add New Employee ---
     with st.expander("➕ අලුත් සේවකයෙක් ඇතුලත් කරන්න", expanded=True):
-        st.info("💡 ගැලරියෙන් පින්තූරය තෝරා මද වේලාවක් රැඳී සිටින්න. දුරකථනයෙන් upload කිරීමේදී app එක refresh වීම සාමාන්‍ය තත්වයකි.")
+        st.info("💡 ගැලරියෙන් පින්තූරය තෝරා මද වේලාවක් රැඳී සිටින්න.")
         
         col_n1, col_n2 = st.columns(2)
         with col_n1:
@@ -203,20 +185,21 @@ with tab3:
         
         if emp_photo_file is not None:
             st.success("✅ පින්තූරය සාර්ථකව ලෝඩ් විය!")
-            st.image(emp_photo_file, width=120, caption="Preview")
+            st.image(emp_photo_file, width=150, caption="Preview")
             
         if st.button("සේවකයා සේව් කරන්න (Save Employee)", type="primary"):
             if emp_name:
-                # Compress the image before saving
-                photo_bytes = get_compressed_image(emp_photo_file) if emp_photo_file else None
+                # Get exact image bytes without compression to keep quality high
+                photo_bytes = emp_photo_file.getvalue() if emp_photo_file else None
                 try:
                     conn = sqlite3.connect('factory_data.db')
                     c = conn.cursor()
                     c.execute("INSERT INTO employees (name, phone, photo) VALUES (?, ?, ?)", (emp_name, emp_phone, photo_bytes))
                     conn.commit()
                     conn.close()
-                    # Clear uploader state
-                    st.session_state.pop("new_emp_file", None)
+                    # Clear uploader state properly
+                    if "new_emp_file" in st.session_state:
+                        del st.session_state["new_emp_file"]
                     st.success(f"{emp_name} සාර්ථකව ඇතුලත් කරන ලදී!")
                     st.rerun()
                 except sqlite3.IntegrityError:
@@ -250,7 +233,7 @@ with tab3:
             
             if curr_photo:
                 st.write("**දැනට ඇති පින්තූරය:**")
-                st.image(curr_photo, width=80)
+                st.image(curr_photo, width=100)
             else:
                 st.info("දැනට පින්තූරයක් නැත.")
                 
@@ -258,11 +241,11 @@ with tab3:
                 
             if upd_photo_file is not None:
                 st.success("✅ අලුත් පින්තූරය සාර්ථකව ලෝඩ් විය!")
-                st.image(upd_photo_file, width=120, caption="New Preview")
+                st.image(upd_photo_file, width=150, caption="New Preview")
         
             if st.button("Update (වෙනස්කම් සේව් කරන්න)", key="update_emp_btn", type="primary"):
-                # Compress new image
-                new_photo_bytes = get_compressed_image(upd_photo_file) if upd_photo_file else curr_photo
+                # Get exact image bytes
+                new_photo_bytes = upd_photo_file.getvalue() if upd_photo_file else curr_photo
                 try:
                     conn = sqlite3.connect('factory_data.db')
                     c = conn.cursor()
@@ -273,7 +256,8 @@ with tab3:
                     conn.commit()
                     conn.close()
                     # Clear uploader state
-                    st.session_state.pop(f"upd_file_{emp_id}", None)
+                    if f"upd_file_{emp_id}" in st.session_state:
+                        del st.session_state[f"upd_file_{emp_id}"]
                     st.success("සාර්ථකව වෙනස් කරන ලදී!")
                     st.rerun()
                 except sqlite3.IntegrityError:
@@ -577,14 +561,14 @@ with tab8:
             
         if st.button("Save Product", type="primary"):
             if new_prod_name:
-                prod_bytes = get_compressed_image(new_prod_photo_file) if new_prod_photo_file else None
+                prod_bytes = new_prod_photo_file.getvalue() if new_prod_photo_file else None
                 st.session_state.products.append({
                     'name': new_prod_name,
                     'price': new_prod_price,
                     'image': prod_bytes
                 })
-                # Clear state
-                st.session_state.pop("prod_up", None)
+                if "prod_up" in st.session_state:
+                    del st.session_state["prod_up"]
                 st.success("සාර්ථකව එකතු කරන ලදී!")
                 st.rerun()
 
