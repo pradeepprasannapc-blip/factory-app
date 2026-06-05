@@ -154,7 +154,6 @@ with tab1:
 # ==========================================
 with tab2:
     st.markdown("### 📋 Work Category & Piece Rates")
-    
     categories = ['All (සියල්ල)'] + list(st.session_state.tasks['Category (කාණ්ඩය)'].unique())
     selected_cat = st.selectbox("කාණ්ඩය අනුව පෙරන්න (Filter by Category):", categories)
     
@@ -166,14 +165,14 @@ with tab2:
     st.dataframe(display_df, use_container_width=True, hide_index=True)
 
 # ==========================================
-# TAB 3: Employee Management
+# TAB 3: Employee Management (Safe Photo Upload & Edit-only Delete)
 # ==========================================
 with tab3:
     st.markdown("### 👥 සේවක කළමනාකරණය (Employee Profiles)")
     
     # --- Add New Employee ---
     with st.expander("➕ අලුත් සේවකයෙක් ඇතුලත් කරන්න", expanded=True):
-        st.info("💡 ගැලරියෙන් පින්තූරය තෝරා මද වේලාවක් රැඳී සිටින්න.")
+        st.info("💡 ගැලරියෙන් පින්තූරය තෝරා මද වේලාවක් රැඳී සිටින්න. පෙරදසුන (Preview) පෙනුණු පසු 'සේව් කරන්න' ඔබන්න.")
         
         col_n1, col_n2 = st.columns(2)
         with col_n1:
@@ -183,23 +182,23 @@ with tab3:
             
         emp_photo_file = st.file_uploader("පින්තූරය තෝරන්න (Gallery):", type=["jpg", "png", "jpeg"], key="new_emp_file")
         
+        # Memory Lock for new employee photo
         if emp_photo_file is not None:
+            st.session_state['new_emp_photo_buffer'] = emp_photo_file.getvalue()
             st.success("✅ පින්තූරය සාර්ථකව ලෝඩ් විය!")
-            st.image(emp_photo_file, width=150, caption="Preview")
+            st.image(st.session_state['new_emp_photo_buffer'], width=150, caption="Preview")
             
         if st.button("සේවකයා සේව් කරන්න (Save Employee)", type="primary"):
             if emp_name:
-                # Get exact image bytes without compression to keep quality high
-                photo_bytes = emp_photo_file.getvalue() if emp_photo_file else None
+                photo_bytes = st.session_state.get('new_emp_photo_buffer', None)
                 try:
                     conn = sqlite3.connect('factory_data.db')
                     c = conn.cursor()
                     c.execute("INSERT INTO employees (name, phone, photo) VALUES (?, ?, ?)", (emp_name, emp_phone, photo_bytes))
                     conn.commit()
                     conn.close()
-                    # Clear uploader state properly
-                    if "new_emp_file" in st.session_state:
-                        del st.session_state["new_emp_file"]
+                    # Clear buffers
+                    st.session_state.pop("new_emp_photo_buffer", None)
                     st.success(f"{emp_name} සාර්ථකව ඇතුලත් කරන ලදී!")
                     st.rerun()
                 except sqlite3.IntegrityError:
@@ -209,8 +208,10 @@ with tab3:
 
     st.markdown("---")
     
-    # --- Edit Existing Employee ---
-    st.markdown("#### ✏️ සේවක විස්තර වෙනස් කිරීම (Edit Profiles)")
+    # --- Edit Existing Employee (With Delete Button Inside) ---
+    st.markdown("#### ✏️ සේවක විස්තර වෙනස් කිරීම හෝ මකා දැමීම")
+    st.write("වැරදිලා සේව් වුණු සේවකයන්ව මකන්න අවශ්‍ය නම්, මෙතනින් නම තෝරලා 'සේවකයාව මකන්න' බොත්තම ඔබන්න.")
+    
     conn = sqlite3.connect('factory_data.db')
     emps_df = pd.read_sql_query("SELECT id, name, phone FROM employees", conn)
     conn.close()
@@ -238,36 +239,51 @@ with tab3:
                 st.info("දැනට පින්තූරයක් නැත.")
                 
             upd_photo_file = st.file_uploader("අලුත් පින්තූරයක් දානවා නම් තෝරන්න:", type=["jpg", "png", "jpeg"], key=f"upd_file_{emp_id}")
-                
+            
+            # Memory Lock for edit photo
+            buffer_key = f"upd_photo_buffer_{emp_id}"
             if upd_photo_file is not None:
+                st.session_state[buffer_key] = upd_photo_file.getvalue()
                 st.success("✅ අලුත් පින්තූරය සාර්ථකව ලෝඩ් විය!")
-                st.image(upd_photo_file, width=150, caption="New Preview")
+                st.image(st.session_state[buffer_key], width=150, caption="New Preview")
         
-            if st.button("Update (වෙනස්කම් සේව් කරන්න)", key="update_emp_btn", type="primary"):
-                # Get exact image bytes
-                new_photo_bytes = upd_photo_file.getvalue() if upd_photo_file else curr_photo
-                try:
+            st.markdown("<br>", unsafe_allow_html=True)
+            col_b1, col_b2 = st.columns(2)
+            
+            with col_b1:
+                if st.button("💾 Update (වෙනස්කම් සේව් කරන්න)", key="update_emp_btn", type="primary"):
+                    new_photo_bytes = st.session_state.get(buffer_key, curr_photo)
+                    try:
+                        conn = sqlite3.connect('factory_data.db')
+                        c = conn.cursor()
+                        c.execute("UPDATE employees SET name=?, phone=?, photo=? WHERE id=?", (upd_name, upd_phone, new_photo_bytes, emp_id))
+                        
+                        if upd_name != curr_name:
+                            c.execute("UPDATE daily_wages SET employee_name=? WHERE employee_name=?", (upd_name, curr_name))
+                        conn.commit()
+                        conn.close()
+                        st.session_state.pop(buffer_key, None)
+                        st.success("සාර්ථකව වෙනස් කරන ලදී!")
+                        st.rerun()
+                    except sqlite3.IntegrityError:
+                        st.error("මෙම නම ඇති වෙනත් සේවකයෙක් දැනටමත් සිටී.")
+                        
+            with col_b2:
+                if st.button("🗑️ සේවකයාව මකන්න (Delete)", key="delete_emp_btn"):
                     conn = sqlite3.connect('factory_data.db')
                     c = conn.cursor()
-                    c.execute("UPDATE employees SET name=?, phone=?, photo=? WHERE id=?", (upd_name, upd_phone, new_photo_bytes, emp_id))
-                    
-                    if upd_name != curr_name:
-                        c.execute("UPDATE daily_wages SET employee_name=? WHERE employee_name=?", (upd_name, curr_name))
+                    c.execute("DELETE FROM employees WHERE id = ?", (emp_id,))
                     conn.commit()
                     conn.close()
-                    # Clear uploader state
-                    if f"upd_file_{emp_id}" in st.session_state:
-                        del st.session_state[f"upd_file_{emp_id}"]
-                    st.success("සාර්ථකව වෙනස් කරන ලදී!")
+                    st.session_state.pop(buffer_key, None)
+                    st.success("සේවකයාව සාර්ථකව මකා දමන ලදී!")
                     st.rerun()
-                except sqlite3.IntegrityError:
-                    st.error("මෙම නම ඇති වෙනත් සේවකයෙක් දැනටමත් සිටී.")
     else:
         st.info("වෙනස් කිරීමට සේවකයන් කිසිවෙකු නැත.")
 
     st.markdown("---")
     
-    # --- View Employees List (Small Photo 70px) ---
+    # --- View Employees List (NO DELETE BUTTON HERE) ---
     st.markdown("#### 🧑‍🤝‍🧑 දැනට සිටින සේවක ලැයිස්තුව")
     conn = sqlite3.connect('factory_data.db')
     c = conn.cursor()
@@ -277,23 +293,15 @@ with tab3:
     
     if emps:
         for emp in emps:
-            c1, c2, c3 = st.columns([1, 4, 1])
+            c1, c2 = st.columns([1, 5])
             with c1:
                 if emp[3]: 
-                    st.image(emp[3], width=70) # කුඩා පින්තූරය
+                    st.image(emp[3], width=80)
                 else:
                     st.write("🖼️ නැත")
             with c2:
                 st.markdown(f"**{emp[1]}**")
                 st.caption(f"📞 {emp[2]}")
-            with c3:
-                if st.button("🗑️", key=f"del_emp_{emp[0]}"):
-                    conn = sqlite3.connect('factory_data.db')
-                    c = conn.cursor()
-                    c.execute("DELETE FROM employees WHERE id = ?", (emp[0],))
-                    conn.commit()
-                    conn.close()
-                    st.rerun()
             st.markdown("---")
     else:
         st.info("දැනට කිසිදු සේවකයෙක් ඇතුලත් කර නොමැත.")
@@ -335,7 +343,6 @@ with tab4:
 
         st.markdown("---")
         
-        # --- Clean grouped display for Cart ---
         if len(st.session_state.daily_cart) > 0:
             st.markdown("#### 📝 අද දින සිදුකළ වැඩ ලැයිස්තුව")
             cart_df = pd.DataFrame(st.session_state.daily_cart)
@@ -554,21 +561,22 @@ with tab8:
         new_prod_price = st.number_input("මිල (Rs):", min_value=0.0, value=1000.0)
         
         new_prod_photo_file = st.file_uploader("පින්තූරය තෝරන්න (Gallery):", type=["jpg", "png", "jpeg"], key="prod_up")
-            
+        
+        # Memory lock for products
         if new_prod_photo_file is not None:
+            st.session_state['new_prod_photo_buffer'] = new_prod_photo_file.getvalue()
             st.success("✅ පින්තූරය සාර්ථකව ලෝඩ් විය!")
-            st.image(new_prod_photo_file, width=150)
+            st.image(st.session_state['new_prod_photo_buffer'], width=150)
             
         if st.button("Save Product", type="primary"):
             if new_prod_name:
-                prod_bytes = new_prod_photo_file.getvalue() if new_prod_photo_file else None
+                prod_bytes = st.session_state.get('new_prod_photo_buffer', None)
                 st.session_state.products.append({
                     'name': new_prod_name,
                     'price': new_prod_price,
                     'image': prod_bytes
                 })
-                if "prod_up" in st.session_state:
-                    del st.session_state["prod_up"]
+                st.session_state.pop("new_prod_photo_buffer", None)
                 st.success("සාර්ථකව එකතු කරන ලදී!")
                 st.rerun()
 
