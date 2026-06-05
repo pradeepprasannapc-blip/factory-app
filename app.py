@@ -142,48 +142,51 @@ with tab2:
     st.dataframe(st.session_state.tasks, use_container_width=True, hide_index=True)
 
 # ==========================================
-# TAB 3: Employee Management (100% Fixed File Uploader & Camera)
+# TAB 3: Employee Management (FIXED 100%)
 # ==========================================
 with tab3:
     st.markdown("### 👥 සේවක කළමනාකරණය (Employee Profiles)")
     
     # --- Add New Employee ---
-    with st.expander("➕ අලුත් සේවකයෙක් ඇතුලත් කරන්න (Add New Employee)", expanded=True):
-        st.info("💡 පින්තූරය තේරූ පසු හෝ කැමරාවෙන් ගත් පසු '✅ පින්තූරය සාර්ථකව ලෝඩ් විය!' ලෙස වැටෙන තුරු රැඳී සිටින්න.")
+    st.markdown("#### ➕ අලුත් සේවකයෙක් ඇතුලත් කරන්න")
+    st.info("💡 ගැලරියෙන් පින්තූරය තේරූ පසු, එය Upload වී '✅ ලෝඩ් විය' යන මැසේජ් එක එනතුරු මදක් රැඳී සිටින්න. (Mobile Data වේගය අනුව තත්පර කිහිපයක් ගතවිය හැක).")
+    
+    col_n1, col_n2 = st.columns(2)
+    with col_n1:
+        emp_name = st.text_input("සේවකයාගේ නම (Name):", key="new_emp_name")
+    with col_n2:
+        emp_phone = st.text_input("දුරකථන අංකය (Phone):", key="new_emp_phone")
         
-        col_n1, col_n2 = st.columns(2)
-        with col_n1:
-            emp_name = st.text_input("සේවකයාගේ නම (Name):", key="new_emp_name")
-        with col_n2:
-            emp_phone = st.text_input("දුරකථන අංකය (Phone):", key="new_emp_phone")
-            
-        st.markdown("**පින්තූරය ලබාදෙන ආකාරය තෝරන්න:**")
-        upload_method = st.radio("Upload Method", ["ගැලරියෙන් තෝරන්න (Gallery)", "කැමරාවෙන් ගන්න (Camera)"], horizontal=True, label_visibility="collapsed")
+    st.markdown("**පින්තූරය එකතු කරන්න (පහතින් ඕනෑම එක ක්‍රමයක් පාවිච්චි කරන්න):**")
+    col_up1, col_up2 = st.columns(2)
+    
+    with col_up1:
+        emp_photo_file = st.file_uploader("1. ගැලරියෙන් තෝරන්න (Gallery):", type=["jpg", "png", "jpeg"], key="new_emp_file")
+    with col_up2:
+        emp_photo_cam = st.camera_input("2. හෝ කැමරාවෙන් ගන්න (Camera):", key="new_emp_cam")
         
-        if upload_method == "ගැලරියෙන් තෝරන්න (Gallery)":
-            emp_photo = st.file_uploader("පින්තූරය (Photo):", type=["jpg", "png", "jpeg"], key="new_emp_photo")
+    # Get whichever photo is provided
+    emp_photo = emp_photo_cam if emp_photo_cam else emp_photo_file
+        
+    if emp_photo is not None:
+        st.success("✅ පින්තූරය සාර්ථකව ලෝඩ් විය! (Image Loaded Successfully)")
+        st.image(emp_photo, width=150, caption="Preview (පෙරදසුන)")
+        
+    if st.button("සේවකයා සේව් කරන්න (Save Employee)", type="primary"):
+        if emp_name:
+            photo_bytes = emp_photo.getvalue() if emp_photo else None
+            try:
+                conn = sqlite3.connect('factory_data.db')
+                c = conn.cursor()
+                c.execute("INSERT INTO employees (name, phone, photo) VALUES (?, ?, ?)", (emp_name, emp_phone, photo_bytes))
+                conn.commit()
+                conn.close()
+                st.success(f"{emp_name} සාර්ථකව ඇතුලත් කරන ලදී!")
+                st.rerun()
+            except sqlite3.IntegrityError:
+                st.error("මෙම නම ඇති සේවකයෙක් දැනටමත් සිටී. වෙනත් නමක් ලබා දෙන්න.")
         else:
-            emp_photo = st.camera_input("කැමරාවෙන් පින්තූරයක් ගන්න (Take a Photo)", key="new_emp_cam")
-            
-        if emp_photo is not None:
-            st.success("✅ පින්තූරය සාර්ථකව ලෝඩ් විය! (Image Loaded Successfully)")
-            st.image(emp_photo, width=150, caption="Preview (පෙරදසුන)")
-            
-        if st.button("සේවකයා සේව් කරන්න (Save Employee)", type="primary"):
-            if emp_name:
-                photo_bytes = emp_photo.getvalue() if emp_photo else None
-                try:
-                    conn = sqlite3.connect('factory_data.db')
-                    c = conn.cursor()
-                    c.execute("INSERT INTO employees (name, phone, photo) VALUES (?, ?, ?)", (emp_name, emp_phone, photo_bytes))
-                    conn.commit()
-                    conn.close()
-                    st.success(f"{emp_name} සාර්ථකව ඇතුලත් කරන ලදී!")
-                    st.rerun()
-                except sqlite3.IntegrityError:
-                    st.error("මෙම නම ඇති සේවකයෙක් දැනටමත් සිටී. වෙනත් නමක් ලබා දෙන්න.")
-            else:
-                st.error("කරුණාකර සේවකයාගේ නම ඇතුලත් කරන්න.")
+            st.error("කරුණාකර සේවකයාගේ නම ඇතුලත් කරන්න.")
 
     st.markdown("---")
     
@@ -209,27 +212,25 @@ with tab3:
             upd_name = st.text_input("අලුත් නම (New Name):", value=curr_name)
             upd_phone = st.text_input("අලුත් දුරකථන අංකය (New Phone):", value=curr_phone if curr_phone else "")
             
-            col_img1, col_img2 = st.columns(2)
-            with col_img1:
-                if curr_photo:
-                    st.write("**දැනට ඇති පින්තූරය:**")
-                    st.image(curr_photo, width=150)
-                else:
-                    st.info("දැනට පින්තූරයක් නැත.")
-                    
-            with col_img2:
-                st.markdown("**අලුත් පින්තූරයක් දානවා නම් තෝරන්න:**")
-                edit_method = st.radio("Edit Upload Method", ["ගැලරියෙන් තෝරන්න", "කැමරාවෙන් ගන්න"], horizontal=True, key=f"rad_{emp_id}", label_visibility="collapsed")
+            if curr_photo:
+                st.write("**දැනට ඇති පින්තූරය:**")
+                st.image(curr_photo, width=150)
+            else:
+                st.info("දැනට පින්තූරයක් නැත.")
                 
-                if edit_method == "ගැලරියෙන් තෝරන්න":
-                    upd_photo = st.file_uploader("අලුත් පින්තූරය:", type=["jpg", "png", "jpeg"], key=f"upd_file_{emp_id}")
-                else:
-                    upd_photo = st.camera_input("කැමරාවෙන් ගන්න", key=f"upd_cam_{emp_id}")
-                    
-                if upd_photo is not None:
-                    st.success("✅ අලුත් පින්තූරය සාර්ථකව ලෝඩ් විය!")
-                    st.image(upd_photo, width=150, caption="New Preview (අලුත් පෙරදසුන)")
-            
+            st.markdown("**අලුත් පින්තූරයක් දානවා නම් පහතින් එකක් තෝරන්න:**")
+            col_eu1, col_eu2 = st.columns(2)
+            with col_eu1:
+                upd_photo_file = st.file_uploader("1. ගැලරියෙන් තෝරන්න:", type=["jpg", "png", "jpeg"], key=f"upd_file_{emp_id}")
+            with col_eu2:
+                upd_photo_cam = st.camera_input("2. හෝ කැමරාවෙන් ගන්න:", key=f"upd_cam_{emp_id}")
+                
+            upd_photo = upd_photo_cam if upd_photo_cam else upd_photo_file
+                
+            if upd_photo is not None:
+                st.success("✅ අලුත් පින්තූරය සාර්ථකව ලෝඩ් විය!")
+                st.image(upd_photo, width=150, caption="New Preview (අලුත් පෙරදසුන)")
+        
             if st.button("Update (වෙනස්කම් සේව් කරන්න)", key="update_emp_btn", type="primary"):
                 new_photo_bytes = upd_photo.getvalue() if upd_photo else curr_photo
                 try:
@@ -515,31 +516,31 @@ with tab8:
                     st.session_state.products.pop(i)
                     st.rerun()
                     
-    with st.expander("➕ අලුත් භාණ්ඩයක් ඇතුලත් කරන්න (Add New Product)"):
-        new_prod_name = st.text_input("භාණ්ඩයේ නම:")
-        new_prod_price = st.number_input("මිල (Rs):", min_value=0.0, value=1000.0)
+    st.markdown("**➕ අලුත් භාණ්ඩයක් ඇතුලත් කරන්න**")
+    new_prod_name = st.text_input("භාණ්ඩයේ නම:")
+    new_prod_price = st.number_input("මිල (Rs):", min_value=0.0, value=1000.0)
+    
+    col_p1, col_p2 = st.columns(2)
+    with col_p1:
+        new_prod_photo_file = st.file_uploader("1. ගැලරියෙන් තෝරන්න:", type=["jpg", "png", "jpeg"], key="prod_up")
+    with col_p2:
+        new_prod_photo_cam = st.camera_input("2. හෝ කැමරාවෙන් ගන්න:", key="prod_cam")
         
-        st.markdown("**පින්තූරය ලබාදෙන ආකාරය තෝරන්න:**")
-        prod_method = st.radio("Product Upload Method", ["ගැලරියෙන් තෝරන්න (Gallery)", "කැමරාවෙන් ගන්න (Camera)"], horizontal=True, label_visibility="collapsed")
+    new_prod_photo = new_prod_photo_cam if new_prod_photo_cam else new_prod_photo_file
         
-        if prod_method == "ගැලරියෙන් තෝරන්න (Gallery)":
-            new_prod_photo = st.file_uploader("පින්තූරය තෝරන්න:", type=["jpg", "png", "jpeg"], key="prod_up")
-        else:
-            new_prod_photo = st.camera_input("කැමරාවෙන් පින්තූරයක් ගන්න:", key="prod_cam")
-            
-        if new_prod_photo is not None:
-            st.success("✅ පින්තූරය සාර්ථකව ලෝඩ් විය!")
-            st.image(new_prod_photo, width=150)
-            
-        if st.button("Save Product", type="primary"):
-            if new_prod_name:
-                st.session_state.products.append({
-                    'name': new_prod_name,
-                    'price': new_prod_price,
-                    'image': new_prod_photo.getvalue() if new_prod_photo else None
-                })
-                st.success("සාර්ථකව එකතු කරන ලදී!")
-                st.rerun()
+    if new_prod_photo is not None:
+        st.success("✅ පින්තූරය සාර්ථකව ලෝඩ් විය!")
+        st.image(new_prod_photo, width=150)
+        
+    if st.button("Save Product", type="primary"):
+        if new_prod_name:
+            st.session_state.products.append({
+                'name': new_prod_name,
+                'price': new_prod_price,
+                'image': new_prod_photo.getvalue() if new_prod_photo else None
+            })
+            st.success("සාර්ථකව එකතු කරන ලදී!")
+            st.rerun()
 
     st.markdown("---")
 
