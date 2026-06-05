@@ -45,7 +45,6 @@ def init_db():
     if 'photo' not in columns_emp:
         c.execute("ALTER TABLE employees ADD COLUMN photo BLOB")
                   
-    # නිවැරදි කළ ස්ථානය (Syntax Error Fix)
     c.execute('''CREATE TABLE IF NOT EXISTS daily_wages
                  (id INTEGER PRIMARY KEY AUTOINCREMENT,
                   date TEXT,
@@ -496,8 +495,9 @@ with tab6:
                     st.rerun()
             
             emp_total = emp_df['එකතුව (Rs)'].sum()
-            # නිවැරදි කළ ස්ථානය (UI Update with Black color text and Dollar icon)
-            st.markdown(f"👷 <span style='background-color: yellow; color: black; padding: 5px; border-radius: 5px;'><strong>{emp} ගේ දෛනික වැටුප: 💵 Rs. {emp_total:,}</strong></span>", unsafe_allow_html=True)
+            # ලා කහ පාටකට වෙනස් කළ ස්ථානය (Light Yellow UI Update)
+            st.markdown(f"👷 <span style='background-color: #FFF2CC; color: #333333; padding: 8px 15px; border-radius: 8px; display: inline-block;'><strong>{emp} ගේ දෛනික වැටුප: 💵 Rs. {emp_total:,}</strong></span>", unsafe_allow_html=True)
+            st.markdown("<br>", unsafe_allow_html=True)
             st.markdown("---")
             
         grand_total = history_df['එකතුව (Rs)'].sum()
