@@ -45,6 +45,7 @@ def init_db():
     if 'photo' not in columns_emp:
         c.execute("ALTER TABLE employees ADD COLUMN photo BLOB")
                   
+    # නිවැරදි කළ ස්ථානය (Syntax Error Fix)
     c.execute('''CREATE TABLE IF NOT EXISTS daily_wages
                  (id INTEGER PRIMARY KEY AUTOINCREMENT,
                   date TEXT,
@@ -52,7 +53,7 @@ def init_db():
                   category TEXT,
                   qty INTEGER,
                   rate REAL,
-                  total REAL)''")
+                  total REAL)''')
                   
     c.execute("PRAGMA table_info(daily_wages)")
     columns_wage = [col[1] for col in c.fetchall()]
@@ -360,7 +361,6 @@ with tab4:
                     "එකතුව": task_rate * task_qty
                 })
                 
-            # Success message එක තිරයේ රැඳී තියෙන්න st.rerun() ඉවත් කර ඇත
             st.success(f"✅ {selected_task} ({task_qty}) ලැයිස්තුවට එකතු කළා!")
 
         st.markdown("---")
@@ -496,8 +496,8 @@ with tab6:
                     st.rerun()
             
             emp_total = emp_df['එකතුව (Rs)'].sum()
-            # MODIFICATION 1 & 2: Added icon (👷 ) before and yellow box around text with specific styling.
-            st.markdown(f"👷 <span style='background-color: yellow; padding: 5px; border-radius: 5px;'><strong>{emp} ගේ දෛනික වැටුප: Rs. {emp_total:,}</strong></span>", unsafe_allow_html=True)
+            # නිවැරදි කළ ස්ථානය (UI Update with Black color text and Dollar icon)
+            st.markdown(f"👷 <span style='background-color: yellow; color: black; padding: 5px; border-radius: 5px;'><strong>{emp} ගේ දෛනික වැටුප: 💵 Rs. {emp_total:,}</strong></span>", unsafe_allow_html=True)
             st.markdown("---")
             
         grand_total = history_df['එකතුව (Rs)'].sum()
