@@ -4,34 +4,40 @@ import sqlite3
 from datetime import datetime
 
 # ==========================================
-# Database Setup (Database යාවත්කාලීන කිරීම සමඟ)
+# Database Setup (Auto-Updating Columns සමඟ)
 # ==========================================
 def init_db():
     conn = sqlite3.connect('factory_data.db')
     c = conn.cursor()
     
-    # සේවකයන් සඳහා වගුව නිර්මාණය
+    # 1. සේවකයන් සඳහා වගුව
     c.execute('''CREATE TABLE IF NOT EXISTS employees
                  (id INTEGER PRIMARY KEY AUTOINCREMENT,
                   name TEXT UNIQUE,
                   phone TEXT)''')
                   
-    # Photo column එක කලින් table එකේ නැත්නම් ඒක අලුතින් එකතු කිරීම
+    # Photo column එක නැත්නම් එකතු කිරීම
     c.execute("PRAGMA table_info(employees)")
-    columns = [col[1] for col in c.fetchall()]
-    if 'photo' not in columns:
+    columns_emp = [col[1] for col in c.fetchall()]
+    if 'photo' not in columns_emp:
         c.execute("ALTER TABLE employees ADD COLUMN photo BLOB")
                   
-    # දෛනික වැටුප් ඉතිහාසය සඳහා වගුව
+    # 2. දෛනික වැටුප් ඉතිහාසය සඳහා වගුව
     c.execute('''CREATE TABLE IF NOT EXISTS daily_wages
                  (id INTEGER PRIMARY KEY AUTOINCREMENT,
                   date TEXT,
-                  employee_name TEXT,
                   task_name TEXT,
                   category TEXT,
                   qty INTEGER,
                   rate REAL,
                   total REAL)''')
+                  
+    # Employee_name column එක පරණ වගුවේ නැත්නම් අලුතින් එකතු කිරීම (Error එකට විසඳුම)
+    c.execute("PRAGMA table_info(daily_wages)")
+    columns_wage = [col[1] for col in c.fetchall()]
+    if 'employee_name' not in columns_wage:
+        c.execute("ALTER TABLE daily_wages ADD COLUMN employee_name TEXT")
+
     conn.commit()
     conn.close()
 
@@ -55,7 +61,6 @@ st.markdown("""
     .sub-title { font-size: 14px !important; color: #6B7280; margin-bottom: 20px; }
     .stDataFrame { border: 1px solid #E5E7EB; border-radius: 8px; overflow: hidden; }
     [data-testid="collapsedControl"] { display: none; }
-    .profile-card { padding: 10px; border: 1px solid #ddd; border-radius: 10px; margin-bottom: 10px; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -64,7 +69,7 @@ st.markdown("<div class='sub-title'>කර්මාන්තශාලා නි�
 st.markdown("---")
 
 # ==========================================
-# Initialize Session States (මූලික දත්ත)
+# Initialize Session States
 # ==========================================
 if 'tasks' not in st.session_state:
     raw_tasks = [
@@ -116,7 +121,7 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
 ])
 
 # ==========================================
-# TAB 1: Products & Showcase
+# TAB 1: Products
 # ==========================================
 with tab1:
     st.markdown("### 🛍️ Product Styles & Selling Prices")
@@ -135,14 +140,14 @@ with tab1:
                 st.markdown("---")
 
 # ==========================================
-# TAB 2: Piece Rates List
+# TAB 2: Piece Rates
 # ==========================================
 with tab2:
     st.markdown("### 📋 Work Category & Piece Rates")
     st.dataframe(st.session_state.tasks, use_container_width=True, hide_index=True)
 
 # ==========================================
-# TAB 3: Employee Management (Profile Photo සමඟ)
+# TAB 3: Employee Management
 # ==========================================
 with tab3:
     st.markdown("### 👥 සේවක කළමනාකරණය (Employee Profiles)")
@@ -186,7 +191,7 @@ with tab3:
         for emp in emps:
             c1, c2, c3 = st.columns([1, 4, 1])
             with c1:
-                if emp[3]: # Photo exists
+                if emp[3]: 
                     st.image(emp[3], use_container_width=True)
                 else:
                     st.info("No Photo")
@@ -271,7 +276,7 @@ with tab4:
                     st.rerun()
 
 # ==========================================
-# TAB 5: History View (Delete පහසුකම සමඟ)
+# TAB 5: History View
 # ==========================================
 with tab5:
     st.markdown("### 🗄️ Daily Work History (දෛනික වැඩ ඉතිහාසය)")
@@ -309,8 +314,8 @@ with tab5:
         with col_del1:
             del_id = st.number_input("මකන්න අවශ්‍ය වාර්තාවේ ID අංකය:", min_value=0, step=1)
         with col_del2:
-            st.write("") # Spacer
-            st.write("") # Spacer
+            st.write("") 
+            st.write("") 
             if st.button("🗑️ වාර්තාව මකන්න (Delete)"):
                 if del_id > 0:
                     conn = sqlite3.connect('factory_data.db')
