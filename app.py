@@ -52,7 +52,7 @@ def init_db():
                   category TEXT,
                   qty INTEGER,
                   rate REAL,
-                  total REAL)''')
+                  total REAL)''")
                   
     c.execute("PRAGMA table_info(daily_wages)")
     columns_wage = [col[1] for col in c.fetchall()]
@@ -496,7 +496,8 @@ with tab6:
                     st.rerun()
             
             emp_total = emp_df['එකතුව (Rs)'].sum()
-            st.markdown(f"**{emp} ගේ දෛනික වැටුප: Rs. {emp_total:,}**")
+            # MODIFICATION 1 & 2: Added icon (👷 ) before and yellow box around text with specific styling.
+            st.markdown(f"👷 <span style='background-color: yellow; padding: 5px; border-radius: 5px;'><strong>{emp} ගේ දෛනික වැටුප: Rs. {emp_total:,}</strong></span>", unsafe_allow_html=True)
             st.markdown("---")
             
         grand_total = history_df['එකතුව (Rs)'].sum()
