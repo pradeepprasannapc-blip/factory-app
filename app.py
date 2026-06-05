@@ -12,11 +12,16 @@ def process_high_quality_image(upload_obj):
     if upload_obj is None:
         return None
     try:
+        # Open image
         img = Image.open(upload_obj)
+        # Fix rotation issues from mobile cameras
         img = ImageOps.exif_transpose(img)
+        # Convert to RGB if necessary (e.g. for PNGs with transparency)
         if img.mode in ("RGBA", "P"):
             img = img.convert("RGB")
+        # Resize using High-Quality LANCZOS filter (keeps it crisp)
         img.thumbnail((800, 800), Image.Resampling.LANCZOS)
+        # Save to buffer with High Quality (90%)
         buf = io.BytesIO()
         img.save(buf, format="JPEG", quality=90)
         return buf.getvalue()
@@ -211,7 +216,7 @@ with tab3:
                 c.execute("INSERT INTO employees (name, phone, photo) VALUES (?, ?, ?)", (new_emp_name, new_emp_phone, photo_bytes))
                 conn.commit()
                 conn.close()
-                st.success(f"{new_emp_name} සාර්ථකව ඇතුලත් කරන ලදී!")
+                st.success(f"✅ {new_emp_name} සාර්ථකව ඇතුලත් කරන ලදී!")
                 for key in ['add_name', 'add_phone', 'add_photo']:
                     if key in st.session_state:
                         del st.session_state[key]
@@ -269,7 +274,7 @@ with tab3:
                             c.execute("UPDATE daily_wages SET employee_name=? WHERE employee_name=?", (upd_name, curr_name))
                         conn.commit()
                         conn.close()
-                        st.success("සාර්ථකව වෙනස් කරන ලදී!")
+                        st.success("✅ සාර්ථකව වෙනස් කරන ලදී!")
                         st.rerun()
                     except sqlite3.IntegrityError:
                         st.error("මෙම නම ඇති වෙනත් සේවකයෙක් දැනටමත් සිටී.")
@@ -281,7 +286,7 @@ with tab3:
                     c.execute("DELETE FROM employees WHERE id = ?", (emp_id,))
                     conn.commit()
                     conn.close()
-                    st.success("සේවකයාව සාර්ථකව මකා දමන ලදී!")
+                    st.success("✅ සේවකයාව සාර්ථකව මකා දමන ලදී!")
                     st.rerun()
     else:
         st.info("වෙනස් කිරීමට සේවකයන් කිසිවෙකු නැත.")
@@ -312,7 +317,7 @@ with tab3:
         st.info("දැනට කිසිදු සේවකයෙක් ඇතුලත් කර නොමැත.")
 
 # ==========================================
-# TAB 4: Daily Wage Calculator (Interactive Delete Cart)
+# TAB 4: Daily Wage Calculator (Smart Merge & Alert Fix)
 # ==========================================
 with tab4:
     st.markdown("### 💰 Daily Wage Calculator")
@@ -335,16 +340,28 @@ with tab4:
             
         if st.button("➕ Add to List (ලැයිස්තුවට එකතු කරන්න)"):
             task_rate = st.session_state.tasks[st.session_state.tasks['Task Name (වැඩ කොටස)'] == selected_task].iloc[0]['Piece Rate / ගෙවන මුදල (Rs)']
-            st.session_state.daily_cart.append({
-                "සේවකයා": selected_emp_wage,
-                "වැඩ කොටස": selected_task,
-                "කාණ්ඩය": cat_to_filter,
-                "ප්‍රමාණය": task_qty,
-                "ඒකක මිල": task_rate,
-                "එකතුව": task_rate * task_qty
-            })
-            st.success(f"{selected_task} ({task_qty}) ලැයිස්තුවට එකතු කළා!")
-            st.rerun()
+            
+            # --- Smart Merge Logic (එකම වැඩේ එකට එකතු කිරීම) ---
+            item_exists = False
+            for item in st.session_state.daily_cart:
+                if item["සේවකයා"] == selected_emp_wage and item["වැඩ කොටස"] == selected_task:
+                    item["ප්‍රමාණය"] += task_qty
+                    item["එකතුව"] = item["ප්‍රමාණය"] * item["ඒකක මිල"]
+                    item_exists = True
+                    break
+            
+            if not item_exists:
+                st.session_state.daily_cart.append({
+                    "සේවකයා": selected_emp_wage,
+                    "වැඩ කොටස": selected_task,
+                    "කාණ්ඩය": cat_to_filter,
+                    "ප්‍රමාණය": task_qty,
+                    "ඒකක මිල": task_rate,
+                    "එකතුව": task_rate * task_qty
+                })
+                
+            # Success message එක තිරයේ රැඳී තියෙන්න st.rerun() ඉවත් කර ඇත
+            st.success(f"✅ {selected_task} ({task_qty}) ලැයිස්තුවට එකතු කළා!")
 
         st.markdown("---")
         
@@ -357,19 +374,16 @@ with tab4:
             unique_cart_emps = cart_df['සේවකයා'].unique()
             for emp in unique_cart_emps:
                 st.markdown(f"**👷 {emp} ගේ වැඩ:**")
-                # Create a copy for the employee and add a boolean checkbox column
                 emp_cart = cart_df[cart_df['සේවකයා'] == emp].copy()
                 emp_cart.insert(0, "මකන්න", False)
                 
-                # Display using interactive data editor
                 edited_emp_cart = st.data_editor(emp_cart.drop(columns=['සේවකයා']), hide_index=True, key=f"cart_edit_{emp}", use_container_width=True)
                 
-                # Identify ticked rows based on the original dataframe index
-                indices_to_delete = edited_emp_cart[edited_emp_cart["මකන්න"] == True].index.tolist()
+                ids_to_del = edited_emp_cart[edited_emp_cart["මකන්න"] == True].index.tolist()
                 
-                if indices_to_delete:
+                if ids_to_del:
                     if st.button(f"🗑️ තේරූ වැඩ මකන්න (Delete Selected)", key=f"del_cart_{emp}"):
-                        for i in sorted(indices_to_delete, reverse=True):
+                        for i in sorted(ids_to_del, reverse=True):
                             del st.session_state.daily_cart[i]
                         st.rerun()
             
@@ -388,7 +402,7 @@ with tab4:
                     conn.commit()
                     conn.close()
                     st.session_state.daily_cart = []
-                    st.success("දත්ත සාර්ථකව History එකට සේව් කරන ලදී!")
+                    st.success("✅ දත්ත සාර්ථකව History එකට සේව් කරන ලදී!")
                     st.rerun()
                     
             with col_btn2:
@@ -435,7 +449,7 @@ with tab5:
                 st.warning("මෙම මාසය සඳහා අදාළ සේවකයාට දත්ත කිසිවක් නොමැත.")
 
 # ==========================================
-# TAB 6: History View (Interactive Checkbox Delete)
+# TAB 6: History View
 # ==========================================
 with tab6:
     st.markdown("### 🗄️ Daily Work History (දෛනික වැඩ ඉතිහාසය)")
@@ -463,13 +477,12 @@ with tab6:
         
         for emp in unique_emps:
             emp_df = history_df[history_df['සේවකයා'] == emp].copy()
-            emp_df.insert(0, "මකන්න", False) # Add Checkbox
+            emp_df.insert(0, "මකන්න", False) 
             
             st.markdown(f"#### 👷 සේවකයා: {emp}")
             
             edited_hist = st.data_editor(emp_df.drop(columns=['සේවකයා']), hide_index=True, key=f"hist_edit_{emp}", use_container_width=True)
             
-            # Detect checked boxes
             ids_to_del = edited_hist[edited_hist["මකන්න"] == True]["ID"].tolist()
             if ids_to_del:
                 if st.button(f"🗑️ තේරූ වාර්තා මකන්න (Delete Selected)", key=f"del_hist_btn_{emp}"):
@@ -479,7 +492,7 @@ with tab6:
                         c.execute("DELETE FROM daily_wages WHERE id = ?", (del_id,))
                     conn.commit()
                     conn.close()
-                    st.success("තේරූ වාර්තා සාර්ථකව මකා දමන ලදී!")
+                    st.success("✅ තේරූ වාර්තා සාර්ථකව මකා දමන ලදී!")
                     st.rerun()
             
             emp_total = emp_df['එකතුව (Rs)'].sum()
@@ -588,7 +601,7 @@ with tab8:
             })
             if "prod_up" in st.session_state:
                 del st.session_state["prod_up"]
-            st.success("සාර්ථකව එකතු කරන ලදී!")
+            st.success("✅ සාර්ථකව එකතු කරන ලදී!")
             st.rerun()
 
     st.markdown("---")
@@ -607,7 +620,7 @@ with tab8:
             
         if st.form_submit_button("Save All Piece Rates (සේව් කරන්න)"):
             st.session_state.tasks = pd.concat(edited_task_dfs, ignore_index=True)
-            st.success("වැඩ කුලී මිල ගණන් සාර්ථකව යාවත්කාලීන කරන ලදී!")
+            st.success("✅ වැඩ කුලී මිල ගණන් සාර්ථකව යාවත්කාලීන කරන ලදී!")
             st.rerun()
 
     st.markdown("---")
@@ -616,5 +629,5 @@ with tab8:
     if st.button("Save Material Prices (සේව් කරන්න)"):
         st.session_state.materials = edited_materials
         st.session_state.price_confirmed = True 
-        st.success("අමුද්‍රව්‍ය මිල ගණන් සාර්ථකව යාවත්කාලීන කරන ලදී!")
+        st.success("✅ අමුද්‍රව්‍ය මිල ගණන් සාර්ථකව යාවත්කාලීන කරන ලදී!")
         st.rerun()
