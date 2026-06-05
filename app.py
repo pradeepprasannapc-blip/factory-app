@@ -495,8 +495,8 @@ with tab6:
                     st.rerun()
             
             emp_total = emp_df['එකතුව (Rs)'].sum()
-            # ලා කහ පාටකට වෙනස් කළ ස්ථානය (Light Yellow UI Update)
-            st.markdown(f"👷 <span style='background-color: #FFF2CC; color: #333333; padding: 8px 15px; border-radius: 8px; display: inline-block;'><strong>{emp} ගේ දෛනික වැටුප: 💵 Rs. {emp_total:,}</strong></span>", unsafe_allow_html=True)
+            # Warning Box එකේ පාටට සමාන වන ලෙස වෙනස් කරන ලදී (Dark theme friendly transparent yellow)
+            st.markdown(f"<div style='background-color: rgba(255, 215, 0, 0.15); border: 1px solid rgba(255, 215, 0, 0.2); padding: 10px 15px; border-radius: 8px; display: inline-block;'>👷 <strong>{emp} ගේ දෛනික වැටුප: 💵 Rs. {emp_total:,}</strong></div>", unsafe_allow_html=True)
             st.markdown("<br>", unsafe_allow_html=True)
             st.markdown("---")
             
