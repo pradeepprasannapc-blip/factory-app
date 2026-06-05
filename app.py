@@ -142,7 +142,7 @@ with tab2:
     st.dataframe(st.session_state.tasks, use_container_width=True, hide_index=True)
 
 # ==========================================
-# TAB 3: Employee Management (Add, Edit, View)
+# TAB 3: Employee Management (Preview Fixed)
 # ==========================================
 with tab3:
     st.markdown("### 👥 සේවක කළමනාකරණය (Employee Profiles)")
@@ -178,7 +178,7 @@ with tab3:
 
     st.markdown("---")
     
-    # --- Edit Existing Employee ---
+    # --- Edit Existing Employee (Form removed for live preview) ---
     st.markdown("#### ✏️ සේවක විස්තර වෙනස් කිරීම (Edit Profiles)")
     conn = sqlite3.connect('factory_data.db')
     emps_df = pd.read_sql_query("SELECT id, name, phone FROM employees", conn)
@@ -196,32 +196,39 @@ with tab3:
             
             emp_id, curr_name, curr_phone, curr_photo = emp_data
             
-            with st.form("edit_emp_form"):
-                st.write(f"**{curr_name} ගේ විස්තර යාවත්කාලීන කරන්න**")
-                upd_name = st.text_input("අලුත් නම (New Name):", value=curr_name)
-                upd_phone = st.text_input("අලුත් දුරකථන අංකය (New Phone):", value=curr_phone if curr_phone else "")
-                
+            st.write(f"**{curr_name} ගේ විස්තර යාවත්කාලීන කරන්න**")
+            upd_name = st.text_input("අලුත් නම (New Name):", value=curr_name)
+            upd_phone = st.text_input("අලුත් දුරකථන අංකය (New Phone):", value=curr_phone if curr_phone else "")
+            
+            col_img1, col_img2 = st.columns(2)
+            with col_img1:
                 if curr_photo:
                     st.write("දැනට ඇති පින්තූරය:")
-                    st.image(curr_photo, width=100)
+                    st.image(curr_photo, width=150)
+                else:
+                    st.write("දැනට පින්තූරයක් නැත.")
                     
+            with col_img2:
                 upd_photo = st.file_uploader("අලුත් පින්තූරයක් දානවා නම් තෝරන්න (New Photo):", type=["jpg", "png", "jpeg"])
-                
-                if st.form_submit_button("Update (වෙනස්කම් සේව් කරන්න)"):
-                    new_photo_bytes = upd_photo.read() if upd_photo else curr_photo
-                    try:
-                        conn = sqlite3.connect('factory_data.db')
-                        c = conn.cursor()
-                        c.execute("UPDATE employees SET name=?, phone=?, photo=? WHERE id=?", (upd_name, upd_phone, new_photo_bytes, emp_id))
-                        # නම වෙනස් කරා නම් ඉතිහාසයේ පරණ නම් ඔක්කොමත් අප්ඩේට් කිරීම
-                        if upd_name != curr_name:
-                            c.execute("UPDATE daily_wages SET employee_name=? WHERE employee_name=?", (upd_name, curr_name))
-                        conn.commit()
-                        conn.close()
-                        st.success("සාර්ථකව වෙනස් කරන ලදී!")
-                        st.rerun()
-                    except sqlite3.IntegrityError:
-                        st.error("මෙම නම ඇති වෙනත් සේවකයෙක් දැනටමත් සිටී.")
+                if upd_photo is not None:
+                    st.image(upd_photo, width=150, caption="Preview (පෙරදසුන)")
+            
+            # Button is outside the form now
+            if st.button("Update (වෙනස්කම් සේව් කරන්න)", key="update_emp_btn"):
+                new_photo_bytes = upd_photo.read() if upd_photo else curr_photo
+                try:
+                    conn = sqlite3.connect('factory_data.db')
+                    c = conn.cursor()
+                    c.execute("UPDATE employees SET name=?, phone=?, photo=? WHERE id=?", (upd_name, upd_phone, new_photo_bytes, emp_id))
+                    
+                    if upd_name != curr_name:
+                        c.execute("UPDATE daily_wages SET employee_name=? WHERE employee_name=?", (upd_name, curr_name))
+                    conn.commit()
+                    conn.close()
+                    st.success("සාර්ථකව වෙනස් කරන ලදී!")
+                    st.rerun()
+                except sqlite3.IntegrityError:
+                    st.error("මෙම නම ඇති වෙනත් සේවකයෙක් දැනටමත් සිටී.")
     else:
         st.info("වෙනස් කිරීමට සේවකයන් කිසිවෙකු නැත.")
 
