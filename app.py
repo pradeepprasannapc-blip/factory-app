@@ -1,39 +1,50 @@
 import streamlit as st
 import pandas as pd
+import sqlite3
+from datetime import datetime
 
-# Page configurations
+# ==========================================
+# Database Setup (දත්ත ගබඩාව සැකසීම)
+# ==========================================
+def init_db():
+    conn = sqlite3.connect('factory_data.db')
+    c = conn.cursor()
+    # Create table for daily wages history
+    c.execute('''CREATE TABLE IF NOT EXISTS daily_wages
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  date TEXT,
+                  task_name TEXT,
+                  category TEXT,
+                  qty INTEGER,
+                  rate REAL,
+                  total REAL)''')
+    conn.commit()
+    conn.close()
+
+# Initialize DB
+init_db()
+
+# ==========================================
+# Page configurations & CSS
+# ==========================================
 st.set_page_config(page_title="Factory Management System", layout="wide", initial_sidebar_state="collapsed")
 
-# Custom CSS for Premium Mixed Look & Better Tables
 st.markdown("""
     <style>
-    .main-title {
-        font-size: 26px !important;
-        font-weight: bold;
-        color: #1E3A8A;
-        margin-bottom: 5px;
-    }
-    .sub-title {
-        font-size: 14px !important;
-        color: #6B7280;
-        margin-bottom: 20px;
-    }
-    .stDataFrame {
-        border: 1px solid #E5E7EB;
-        border-radius: 8px;
-        overflow: hidden;
-    }
-    /* Hide the default sidebar completely */
+    .main-title { font-size: 26px !important; font-weight: bold; color: #1E3A8A; margin-bottom: 5px; }
+    .sub-title { font-size: 14px !important; color: #6B7280; margin-bottom: 20px; }
+    .stDataFrame { border: 1px solid #E5E7EB; border-radius: 8px; overflow: hidden; }
     [data-testid="collapsedControl"] { display: none; }
     </style>
 """, unsafe_allow_html=True)
 
-# Application Header
 st.markdown("<div class='main-title'>🏭 Production & Wage Management System</div>", unsafe_allow_html=True)
 st.markdown("<div class='sub-title'>කර්මාන්තශාලා නිෂ්පාදන, දෛනික වැටුප් සහ වියදම් කළමනාකරණ පද්ධතිය</div>", unsafe_allow_html=True)
 st.markdown("---")
 
-# Initialize Session States for Data Retention
+# ==========================================
+# Initialize Session States (මූලික දත්ත)
+# ==========================================
 if 'tasks' not in st.session_state:
     raw_tasks = [
         ('මල් කනු හැදීම', 'Making (හැදීම)'), ('මල් කනු ෆිනිශින් කිරීම', 'Finishing (ෆිනිශින්)'), 
@@ -76,7 +87,7 @@ if 'products' not in st.session_state:
 if 'daily_cart' not in st.session_state:
     st.session_state.daily_cart = []
 
-# --- System Alerts (At the top for better mobile view) ---
+# --- System Alerts ---
 if 'price_confirmed' not in st.session_state:
     st.session_state.price_confirmed = False
 
@@ -86,12 +97,15 @@ if not st.session_state.price_confirmed:
         st.session_state.price_confirmed = True
         st.rerun()
 
-# Horizontal Tabs Navigation
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
+# ==========================================
+# Navigation Tabs (දැන් Tabs 6ක් ඇත)
+# ==========================================
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "🛍️ භාණ්ඩ හා මාදිලි", 
-    "📋 වැඩ කුලී ලේඛනය", 
+    "📋 කුලී ලේඛනය", 
     "💰 දෛනික වැටුප", 
-    "📊 වියදම් හා ලාභ", 
+    "🗄️ දත්ත ඉතිහාසය", 
+    "📊 වියදම්/ලාභ", 
     "⚙️ Control Panel"
 ])
 
@@ -130,13 +144,12 @@ with tab2:
     st.dataframe(display_df, use_container_width=True, hide_index=True)
 
 # ==========================================
-# TAB 3: Daily Wage Calculator (NEW CART SYSTEM)
+# TAB 3: Daily Wage Calculator
 # ==========================================
 with tab3:
     st.markdown("### 💰 Daily Wage Calculator")
     st.write("සිදුකළ වැඩ කොටස් එකින් එක තෝරා 'Add to List' බොත්තම ඔබන්න.")
     
-    # Selection Area
     col1, col2, col3 = st.columns([2, 2, 1])
     with col1:
         cat_to_filter = st.selectbox("1. වැඩ වර්ගය (Category):", st.session_state.tasks['Category (කාණ්ඩය)'].unique())
@@ -160,7 +173,6 @@ with tab3:
 
     st.markdown("---")
     
-    # Display Cart
     if len(st.session_state.daily_cart) > 0:
         st.markdown("#### 📝 අද දින සිදුකළ වැඩ ලැයිස්තුව")
         cart_df = pd.DataFrame(st.session_state.daily_cart)
@@ -169,16 +181,54 @@ with tab3:
         grand_total = cart_df["එකතුව (Total Rs)"].sum()
         st.markdown(f"### 💵 මුළු දෛනික වැටුප: Rs. {grand_total:,}")
         
-        if st.button("🗑️ Clear List (ලැයිස්තුව මකන්න)"):
-            st.session_state.daily_cart = []
-            st.rerun()
+        col_btn1, col_btn2 = st.columns(2)
+        with col_btn1:
+            if st.button("💾 Save to History (ඉතිහාසයට සේව් කරන්න)", type="primary"):
+                conn = sqlite3.connect('factory_data.db')
+                c = conn.cursor()
+                today = datetime.now().strftime("%Y-%m-%d")
+                for item in st.session_state.daily_cart:
+                    c.execute("INSERT INTO daily_wages (date, task_name, category, qty, rate, total) VALUES (?, ?, ?, ?, ?, ?)",
+                              (today, item['වැඩ කොටස (Task)'], item['කාණ්ඩය (Category)'], item['ප්‍රමාණය (Qty)'], item['ඒකක මිල (Rate)'], item['එකතුව (Total Rs)']))
+                conn.commit()
+                conn.close()
+                st.session_state.daily_cart = []
+                st.success("දත්ත සාර්ථකව History එකට සේව් කරන ලදී!")
+                st.rerun()
+                
+        with col_btn2:
+            if st.button("🗑️ Clear List (ලැයිස්තුව මකන්න)"):
+                st.session_state.daily_cart = []
+                st.rerun()
     else:
         st.info("දැනට කිසිදු වැඩක් ලැයිස්තුවට එකතු කර නැත.")
 
 # ==========================================
-# TAB 4: Cost & Profit Summary
+# TAB 4: History View (අලුත් Tab එක)
 # ==========================================
 with tab4:
+    st.markdown("### 🗄️ Daily Work History (දෛනික වැඩ ඉතිහාසය)")
+    st.write("පෙර දිනවල සේව් කරපු දත්ත මෙතනින් බලාගන්න පුළුවන්.")
+    
+    selected_date = st.date_input("දවස තෝරන්න (Select Date):", datetime.now())
+    selected_date_str = selected_date.strftime("%Y-%m-%d")
+    
+    conn = sqlite3.connect('factory_data.db')
+    query = f"SELECT task_name AS 'වැඩ කොටස', category AS 'කාණ්ඩය', qty AS 'ප්‍රමාණය', rate AS 'ඒකක මිල', total AS 'එකතුව (Rs)' FROM daily_wages WHERE date = '{selected_date_str}'"
+    history_df = pd.read_sql_query(query, conn)
+    conn.close()
+    
+    if len(history_df) > 0:
+        st.dataframe(history_df, use_container_width=True, hide_index=True)
+        total_history = history_df['එකතුව (Rs)'].sum()
+        st.markdown(f"#### 📅 {selected_date_str} දින මුළු වැටුප: Rs. {total_history:,}")
+    else:
+        st.info(f"{selected_date_str} දිනට අදාල දත්ත කිසිවක් Database එකේ නොමැත.")
+
+# ==========================================
+# TAB 5: Cost & Profit Summary (Smart Calculation)
+# ==========================================
+with tab5:
     st.markdown("### 📊 Production Cost & Profit Calculation")
     if len(st.session_state.products) == 0:
         st.warning("කරුණාකර ප්‍රථමයෙන් භාණ්ඩයක් ඇතුලත් කරන්න.")
@@ -191,15 +241,29 @@ with tab4:
         st.write(f"**Selling Price (විකුණුම් මිල):** Rs. {selling_price:,}")
         
         c1, c2 = st.columns(2)
+        
+        # --- Labor Cost Section ---
         with c1:
             st.markdown("##### 🛠️ 1. Labor Costs (වැඩ කුලී)")
-            cost_tasks = st.multiselect("අදාළ වැඩ කොටස් තෝරන්න:", st.session_state.tasks['Task Name (වැඩ කොටස)'])
-            total_labor_cost = 0
-            for task in cost_tasks:
-                task_price = st.session_state.tasks[st.session_state.tasks['Task Name (වැඩ කොටස)'] == task].iloc[0]['Piece Rate / ගෙවන මුදල (Rs)']
-                qty = st.number_input(f"කෑලි ගණන ({task})", min_value=1, value=1, key=f"cost_{task}")
-                total_labor_cost += (task_price * qty)
+            calc_method = st.radio("ගණනය කරන ආකාරය තෝරන්න:", ["📝 අතින් ඇතුලත් කිරීම", "🗄️ ඉතිහාසයෙන් ගැනීම (History)"], horizontal=True)
+            
+            total_labor_cost = 0.0
+            
+            if calc_method == "📝 අතින් ඇතුලත් කිරීම":
+                cost_tasks = st.multiselect("අදාළ වැඩ කොටස් තෝරන්න:", st.session_state.tasks['Task Name (වැඩ කොටස)'])
+                for task in cost_tasks:
+                    task_price = st.session_state.tasks[st.session_state.tasks['Task Name (වැඩ කොටස)'] == task].iloc[0]['Piece Rate / ගෙවන මුදල (Rs)']
+                    qty = st.number_input(f"කෑලි ගණන ({task})", min_value=1, value=1, key=f"cost_{task}")
+                    total_labor_cost += (task_price * qty)
+            else:
+                hist_date = st.date_input("වියදම් බැලීමට අදාළ දවස තෝරන්න:", datetime.now(), key="hist_date")
+                conn = sqlite3.connect('factory_data.db')
+                hist_total = pd.read_sql_query(f"SELECT SUM(total) as sum_total FROM daily_wages WHERE date = '{hist_date.strftime('%Y-%m-%d')}'", conn).iloc[0]['sum_total']
+                conn.close()
+                total_labor_cost = float(hist_total) if pd.notna(hist_total) else 0.0
+                st.info(f"👉 තෝරාගත් දිනට මුළු වැඩ කුලිය: Rs. {total_labor_cost:,}")
                 
+        # --- Material Cost Section ---
         with c2:
             st.markdown("##### 🧱 2. Material Costs (අමුද්‍රව්‍ය)")
             selected_materials = st.multiselect("භාවිතා කල අමුද්‍රව්‍ය තෝරන්න:", st.session_state.materials['Material Name (අමුද්‍රව්‍ය)'].tolist())
@@ -219,17 +283,16 @@ with tab4:
         }))
         
         if profit >= 0:
-            st.success(f"📈 Net Profit per Unit (ශුද්ධ ලාභය): Rs. {profit:,}")
+            st.success(f"📈 Net Profit (ශුද්ධ ලාභය): Rs. {profit:,}")
         else:
-            st.error(f"📉 Net Loss per Unit (අලාභය): Rs. {profit:,}")
+            st.error(f"📉 Net Loss (අලාභය): Rs. {profit:,}")
 
 # ==========================================
-# TAB 5: Control Panel
+# TAB 6: Control Panel
 # ==========================================
-with tab5:
+with tab6:
     st.markdown("### ⚙️ Factory Data Control Panel")
     
-    # Section A: Products
     st.markdown("#### 📸 Manage Product Styles & Photos")
     if len(st.session_state.products) > 0:
         for i, p in enumerate(st.session_state.products):
@@ -261,33 +324,25 @@ with tab5:
 
     st.markdown("---")
 
-    # Section B: Grouped Piece Rates
-    st.markdown("#### 📋 Update Piece Rates (කාණ්ඩ අනුව මිල ගණන් වෙනස් කිරීම)")
-    st.write("මිල ගණන් වෙනස් කර හෝ අලුත් ඒවා එකතු කර පහළින් ඇති 'Save' බොත්තම ඔබන්න.")
-    
+    st.markdown("#### 📋 Update Piece Rates (කාණ්ඩ අනුව මිල ගණන්)")
     unique_categories = st.session_state.tasks['Category (කාණ්ඩය)'].unique()
     edited_task_dfs = []
     
     with st.form("piece_rates_form"):
         for cat in unique_categories:
             st.markdown(f"**🔹 {cat}**")
-            # Filter df by category
             df_cat = st.session_state.tasks[st.session_state.tasks['Category (කාණ්ඩය)'] == cat].copy()
-            # Let user edit the specific category table
             edited_df_cat = st.data_editor(df_cat, num_rows="dynamic", use_container_width=True, key=f"editor_{cat}")
-            # Ensure any newly added rows retain the correct category
             edited_df_cat['Category (කාණ්ඩය)'] = cat 
             edited_task_dfs.append(edited_df_cat)
             
         if st.form_submit_button("Save All Piece Rates (සේව් කරන්න)"):
-            # Combine all edited dataframes back together
             st.session_state.tasks = pd.concat(edited_task_dfs, ignore_index=True)
             st.success("වැඩ කුලී මිල ගණන් සාර්ථකව යාවත්කාලීන කරන ලදී!")
             st.rerun()
 
     st.markdown("---")
 
-    # Section C: Material Prices
     st.markdown("#### 🧱 Update Material Prices (අමුද්‍රව්‍ය මිල ගණන්)")
     edited_materials = st.data_editor(st.session_state.materials, num_rows="dynamic", use_container_width=True)
     if st.button("Save Material Prices (සේව් කරන්න)"):
