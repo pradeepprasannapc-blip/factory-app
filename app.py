@@ -12,16 +12,11 @@ def process_high_quality_image(upload_obj):
     if upload_obj is None:
         return None
     try:
-        # Open image
         img = Image.open(upload_obj)
-        # Fix rotation issues from mobile cameras
         img = ImageOps.exif_transpose(img)
-        # Convert to RGB if necessary (e.g. for PNGs with transparency)
         if img.mode in ("RGBA", "P"):
             img = img.convert("RGB")
-        # Resize using High-Quality LANCZOS filter (keeps it crisp)
         img.thumbnail((800, 800), Image.Resampling.LANCZOS)
-        # Save to buffer with High Quality (90%)
         buf = io.BytesIO()
         img.save(buf, format="JPEG", quality=90)
         return buf.getvalue()
@@ -191,7 +186,7 @@ with tab2:
     st.dataframe(display_df, use_container_width=True, hide_index=True)
 
 # ==========================================
-# TAB 3: Employee Management (NO FORMS, HIGH QUALITY IMAGES)
+# TAB 3: Employee Management
 # ==========================================
 with tab3:
     st.markdown("### 👥 සේවක කළමනාකරණය (Employee Profiles)")
@@ -209,7 +204,6 @@ with tab3:
         
     if st.button("💾 සේවකයා සේව් කරන්න (Save Employee)", type="primary"):
         if new_emp_name:
-            # Compress with high quality
             photo_bytes = process_high_quality_image(new_emp_photo_file) if new_emp_photo_file else None
             try:
                 conn = sqlite3.connect('factory_data.db')
@@ -218,7 +212,6 @@ with tab3:
                 conn.commit()
                 conn.close()
                 st.success(f"{new_emp_name} සාර්ථකව ඇතුලත් කරන ලදී!")
-                # Reset inputs by clearing keys from session state if they exist
                 for key in ['add_name', 'add_phone', 'add_photo']:
                     if key in st.session_state:
                         del st.session_state[key]
@@ -295,7 +288,7 @@ with tab3:
 
     st.markdown("---")
     
-    # --- View Employees List (High Quality Display) ---
+    # --- View Employees List ---
     st.markdown("#### 🧑‍🤝‍🧑 දැනට සිටින සේවක ලැයිස්තුව")
     conn = sqlite3.connect('factory_data.db')
     c = conn.cursor()
@@ -305,10 +298,10 @@ with tab3:
     
     if emps:
         for emp in emps:
-            c1, c2 = st.columns([1, 3]) # Changed ratio to make image crisp and proportional
+            c1, c2 = st.columns([1, 3]) 
             with c1:
                 if emp[3]: 
-                    st.image(emp[3], use_container_width=True) # Let CSS scale it beautifully
+                    st.image(emp[3], use_container_width=True) 
                 else:
                     st.write("🖼️ නැත")
             with c2:
@@ -319,7 +312,7 @@ with tab3:
         st.info("දැනට කිසිදු සේවකයෙක් ඇතුලත් කර නොමැත.")
 
 # ==========================================
-# TAB 4: Daily Wage Calculator
+# TAB 4: Daily Wage Calculator (Interactive Delete Cart)
 # ==========================================
 with tab4:
     st.markdown("### 💰 Daily Wage Calculator")
@@ -357,13 +350,28 @@ with tab4:
         
         if len(st.session_state.daily_cart) > 0:
             st.markdown("#### 📝 අද දින සිදුකළ වැඩ ලැයිස්තුව")
+            st.info("💡 වැරදි වැඩක් ඇත්නම්, ඒ ඉදිරියේ ඇති 'මකන්න' කොටුව මත ටික් එකක් දමා පහළින් ඇති රතු බොත්තම ඔබන්න.")
+            
             cart_df = pd.DataFrame(st.session_state.daily_cart)
             
             unique_cart_emps = cart_df['සේවකයා'].unique()
             for emp in unique_cart_emps:
                 st.markdown(f"**👷 {emp} ගේ වැඩ:**")
-                emp_cart = cart_df[cart_df['සේවකයා'] == emp].drop(columns=['සේවකයා'])
-                st.dataframe(emp_cart, use_container_width=True, hide_index=True)
+                # Create a copy for the employee and add a boolean checkbox column
+                emp_cart = cart_df[cart_df['සේවකයා'] == emp].copy()
+                emp_cart.insert(0, "මකන්න", False)
+                
+                # Display using interactive data editor
+                edited_emp_cart = st.data_editor(emp_cart.drop(columns=['සේවකයා']), hide_index=True, key=f"cart_edit_{emp}", use_container_width=True)
+                
+                # Identify ticked rows based on the original dataframe index
+                indices_to_delete = edited_emp_cart[edited_emp_cart["මකන්න"] == True].index.tolist()
+                
+                if indices_to_delete:
+                    if st.button(f"🗑️ තේරූ වැඩ මකන්න (Delete Selected)", key=f"del_cart_{emp}"):
+                        for i in sorted(indices_to_delete, reverse=True):
+                            del st.session_state.daily_cart[i]
+                        st.rerun()
             
             grand_total = cart_df["එකතුව"].sum()
             st.markdown(f"### 💵 මුළු දෛනික වැටුප: Rs. {grand_total:,}")
@@ -384,7 +392,7 @@ with tab4:
                     st.rerun()
                     
             with col_btn2:
-                if st.button("🗑️ Clear List (ලැයිස්තුව මකන්න)"):
+                if st.button("🗑️ Clear List (සම්පූර්ණ ලැයිස්තුවම මකන්න)"):
                     st.session_state.daily_cart = []
                     st.rerun()
 
@@ -427,7 +435,7 @@ with tab5:
                 st.warning("මෙම මාසය සඳහා අදාළ සේවකයාට දත්ත කිසිවක් නොමැත.")
 
 # ==========================================
-# TAB 6: History View
+# TAB 6: History View (Interactive Checkbox Delete)
 # ==========================================
 with tab6:
     st.markdown("### 🗄️ Daily Work History (දෛනික වැඩ ඉතිහාසය)")
@@ -450,14 +458,29 @@ with tab6:
     conn.close()
     
     if len(history_df) > 0:
+        st.info("💡 මකා දැමීමට අවශ්‍ය වාර්තා ඉදිරියේ ඇති 'මකන්න' කොටුවට ටික් එකක් දමා පහළින් ඇති බොත්තම ඔබන්න.")
         unique_emps = history_df['සේවකයා'].unique()
         
         for emp in unique_emps:
-            emp_df = history_df[history_df['සේවකයා'] == emp]
+            emp_df = history_df[history_df['සේවකයා'] == emp].copy()
+            emp_df.insert(0, "මකන්න", False) # Add Checkbox
+            
             st.markdown(f"#### 👷 සේවකයා: {emp}")
             
-            display_df = emp_df.drop(columns=['සේවකයා'])
-            st.dataframe(display_df, use_container_width=True, hide_index=True)
+            edited_hist = st.data_editor(emp_df.drop(columns=['සේවකයා']), hide_index=True, key=f"hist_edit_{emp}", use_container_width=True)
+            
+            # Detect checked boxes
+            ids_to_del = edited_hist[edited_hist["මකන්න"] == True]["ID"].tolist()
+            if ids_to_del:
+                if st.button(f"🗑️ තේරූ වාර්තා මකන්න (Delete Selected)", key=f"del_hist_btn_{emp}"):
+                    conn = sqlite3.connect('factory_data.db')
+                    c = conn.cursor()
+                    for del_id in ids_to_del:
+                        c.execute("DELETE FROM daily_wages WHERE id = ?", (del_id,))
+                    conn.commit()
+                    conn.close()
+                    st.success("තේරූ වාර්තා සාර්ථකව මකා දමන ලදී!")
+                    st.rerun()
             
             emp_total = emp_df['එකතුව (Rs)'].sum()
             st.markdown(f"**{emp} ගේ දෛනික වැටුප: Rs. {emp_total:,}**")
@@ -468,25 +491,6 @@ with tab6:
             st.success(f"### 💵 {selected_date_str} දින මුළු වැටුප (සියලුම සේවක): Rs. {grand_total:,}")
         else:
             st.success(f"### 💵 {filter_emp} සඳහා මුළු වැටුප: Rs. {grand_total:,}")
-            
-        st.markdown("#### 🗑️ වැරදි වාර්තා මකා දැමීම (Delete Record)")
-        col_del1, col_del2 = st.columns([2, 1])
-        with col_del1:
-            del_id = st.number_input("මකන්න අවශ්‍ය වාර්තාවේ ID අංකය (ඉහත වගුවෙන් බලන්න):", min_value=0, step=1)
-        with col_del2:
-            st.write("") 
-            st.write("") 
-            if st.button("🗑️ වාර්තාව මකන්න (Delete)"):
-                if del_id > 0:
-                    conn = sqlite3.connect('factory_data.db')
-                    c = conn.cursor()
-                    c.execute("DELETE FROM daily_wages WHERE id = ?", (del_id,))
-                    conn.commit()
-                    conn.close()
-                    st.success("වාර්තාව සාර්ථකව මකා දමන ලදී!")
-                    st.rerun()
-                else:
-                    st.error("කරුණාකර නිවැරදි ID අංකයක් ලබා දෙන්න.")
     else:
         st.info("මෙම දිනට අදාල දත්ත කිසිවක් නොමැත.")
 
@@ -576,7 +580,6 @@ with tab8:
         
     if st.button("Save Product", type="primary"):
         if new_prod_name:
-            # Compress high quality for product too
             prod_bytes = process_high_quality_image(new_prod_photo_file) if new_prod_photo_file else None
             st.session_state.products.append({
                 'name': new_prod_name,
