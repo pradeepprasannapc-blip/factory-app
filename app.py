@@ -2,6 +2,31 @@ import streamlit as st
 import pandas as pd
 import sqlite3
 from datetime import datetime
+from PIL import Image, ImageOps
+import io
+
+# ==========================================
+# High-Quality Image Processing
+# ==========================================
+def process_high_quality_image(upload_obj):
+    if upload_obj is None:
+        return None
+    try:
+        # Open image
+        img = Image.open(upload_obj)
+        # Fix rotation issues from mobile cameras
+        img = ImageOps.exif_transpose(img)
+        # Convert to RGB if necessary (e.g. for PNGs with transparency)
+        if img.mode in ("RGBA", "P"):
+            img = img.convert("RGB")
+        # Resize using High-Quality LANCZOS filter (keeps it crisp)
+        img.thumbnail((800, 800), Image.Resampling.LANCZOS)
+        # Save to buffer with High Quality (90%)
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=90)
+        return buf.getvalue()
+    except Exception as e:
+        return upload_obj.getvalue()
 
 # ==========================================
 # Database Setup
@@ -64,7 +89,7 @@ st.markdown("<div class='sub-title'>කර්මාන්තශාලා නි�
 st.markdown("---")
 
 # ==========================================
-# Initialize Session States (Full Tasks List)
+# Initialize Session States
 # ==========================================
 if 'tasks' not in st.session_state:
     raw_tasks = [
@@ -166,7 +191,7 @@ with tab2:
     st.dataframe(display_df, use_container_width=True, hide_index=True)
 
 # ==========================================
-# TAB 3: Employee Management (BUG FREE PHOTO UPLOAD)
+# TAB 3: Employee Management (NO FORMS, HIGH QUALITY IMAGES)
 # ==========================================
 with tab3:
     st.markdown("### 👥 සේවක කළමනාකරණය (Employee Profiles)")
@@ -181,23 +206,22 @@ with tab3:
         new_emp_phone = st.text_input("දුරකථන අංකය (Phone):", key="add_phone")
         
     new_emp_photo_file = st.file_uploader("පින්තූරය තෝරන්න (Gallery):", type=["jpg", "png", "jpeg"], key="add_photo")
-    
-    # Safe rendering of preview using getvalue() to avoid file pointer bugs
-    photo_bytes_to_save = None
-    if new_emp_photo_file is not None:
-        photo_bytes_to_save = new_emp_photo_file.getvalue()
-        st.success("✅ පින්තූරය සාර්ථකව ලෝඩ් විය!")
-        st.image(photo_bytes_to_save, width=150, caption="Preview (පෙරදසුන)")
         
     if st.button("💾 සේවකයා සේව් කරන්න (Save Employee)", type="primary"):
         if new_emp_name:
+            # Compress with high quality
+            photo_bytes = process_high_quality_image(new_emp_photo_file) if new_emp_photo_file else None
             try:
                 conn = sqlite3.connect('factory_data.db')
                 c = conn.cursor()
-                c.execute("INSERT INTO employees (name, phone, photo) VALUES (?, ?, ?)", (new_emp_name, new_emp_phone, photo_bytes_to_save))
+                c.execute("INSERT INTO employees (name, phone, photo) VALUES (?, ?, ?)", (new_emp_name, new_emp_phone, photo_bytes))
                 conn.commit()
                 conn.close()
                 st.success(f"{new_emp_name} සාර්ථකව ඇතුලත් කරන ලදී!")
+                # Reset inputs by clearing keys from session state if they exist
+                for key in ['add_name', 'add_phone', 'add_photo']:
+                    if key in st.session_state:
+                        del st.session_state[key]
                 st.rerun()
             except sqlite3.IntegrityError:
                 st.error("මෙම නම ඇති සේවකයෙක් දැනටමත් සිටී. වෙනත් නමක් ලබා දෙන්න.")
@@ -231,27 +255,22 @@ with tab3:
             
             if curr_photo:
                 st.write("**දැනට ඇති පින්තූරය:**")
-                st.image(curr_photo, width=100)
+                st.image(curr_photo, width=150)
             else:
                 st.info("දැනට පින්තූරයක් නැත.")
                 
-            upd_photo_file = st.file_uploader("අලුත් පින්තූරයක් දානවා නම් තෝරන්න:", type=["jpg", "png", "jpeg"], key="upd_photo")
+            upd_photo_file = st.file_uploader("අලුත් පින්තූරයක් දානවා නම් තෝරන්න:", type=["jpg", "png", "jpeg"], key=f"upd_photo_{emp_id}")
             
-            updated_photo_bytes = curr_photo
-            if upd_photo_file is not None:
-                updated_photo_bytes = upd_photo_file.getvalue()
-                st.success("✅ අලුත් පින්තූරය සාර්ථකව ලෝඩ් විය!")
-                st.image(updated_photo_bytes, width=150, caption="New Preview")
-                
             st.markdown("<br>", unsafe_allow_html=True)
             col_btn1, col_btn2 = st.columns(2)
             
             with col_btn1:
                 if st.button("💾 Update (වෙනස්කම් සේව් කරන්න)", type="primary"):
+                    new_photo_bytes = process_high_quality_image(upd_photo_file) if upd_photo_file else curr_photo
                     try:
                         conn = sqlite3.connect('factory_data.db')
                         c = conn.cursor()
-                        c.execute("UPDATE employees SET name=?, phone=?, photo=? WHERE id=?", (upd_name, upd_phone, updated_photo_bytes, emp_id))
+                        c.execute("UPDATE employees SET name=?, phone=?, photo=? WHERE id=?", (upd_name, upd_phone, new_photo_bytes, emp_id))
                         
                         if upd_name != curr_name:
                             c.execute("UPDATE daily_wages SET employee_name=? WHERE employee_name=?", (upd_name, curr_name))
@@ -276,7 +295,7 @@ with tab3:
 
     st.markdown("---")
     
-    # --- View Employees List (NO DELETE BUTTONS HERE) ---
+    # --- View Employees List (High Quality Display) ---
     st.markdown("#### 🧑‍🤝‍🧑 දැනට සිටින සේවක ලැයිස්තුව")
     conn = sqlite3.connect('factory_data.db')
     c = conn.cursor()
@@ -286,10 +305,10 @@ with tab3:
     
     if emps:
         for emp in emps:
-            c1, c2 = st.columns([1, 5])
+            c1, c2 = st.columns([1, 3]) # Changed ratio to make image crisp and proportional
             with c1:
                 if emp[3]: 
-                    st.image(emp[3], width=80) 
+                    st.image(emp[3], use_container_width=True) # Let CSS scale it beautifully
                 else:
                     st.write("🖼️ නැත")
             with c2:
@@ -554,20 +573,18 @@ with tab8:
     new_prod_price = st.number_input("මිල (Rs):", min_value=0.0, value=1000.0)
     
     new_prod_photo_file = st.file_uploader("පින්තූරය තෝරන්න (Gallery):", type=["jpg", "png", "jpeg"], key="prod_up")
-    
-    prod_bytes_to_save = None
-    if new_prod_photo_file is not None:
-        prod_bytes_to_save = new_prod_photo_file.getvalue()
-        st.success("✅ පින්තූරය සාර්ථකව ලෝඩ් විය!")
-        st.image(prod_bytes_to_save, width=150)
         
     if st.button("Save Product", type="primary"):
         if new_prod_name:
+            # Compress high quality for product too
+            prod_bytes = process_high_quality_image(new_prod_photo_file) if new_prod_photo_file else None
             st.session_state.products.append({
                 'name': new_prod_name,
                 'price': new_prod_price,
-                'image': prod_bytes_to_save
+                'image': prod_bytes
             })
+            if "prod_up" in st.session_state:
+                del st.session_state["prod_up"]
             st.success("සාර්ථකව එකතු කරන ලදී!")
             st.rerun()
 
