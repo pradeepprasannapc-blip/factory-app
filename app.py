@@ -4,25 +4,22 @@ import sqlite3
 from datetime import datetime
 
 # ==========================================
-# Database Setup (Auto-Updating Columns සමඟ)
+# Database Setup
 # ==========================================
 def init_db():
     conn = sqlite3.connect('factory_data.db')
     c = conn.cursor()
     
-    # 1. සේවකයන් සඳහා වගුව
     c.execute('''CREATE TABLE IF NOT EXISTS employees
                  (id INTEGER PRIMARY KEY AUTOINCREMENT,
                   name TEXT UNIQUE,
                   phone TEXT)''')
                   
-    # Photo column එක නැත්නම් එකතු කිරීම
     c.execute("PRAGMA table_info(employees)")
     columns_emp = [col[1] for col in c.fetchall()]
     if 'photo' not in columns_emp:
         c.execute("ALTER TABLE employees ADD COLUMN photo BLOB")
                   
-    # 2. දෛනික වැටුප් ඉතිහාසය සඳහා වගුව
     c.execute('''CREATE TABLE IF NOT EXISTS daily_wages
                  (id INTEGER PRIMARY KEY AUTOINCREMENT,
                   date TEXT,
@@ -32,7 +29,6 @@ def init_db():
                   rate REAL,
                   total REAL)''')
                   
-    # Employee_name column එක පරණ වගුවේ නැත්නම් අලුතින් එකතු කිරීම (Error එකට විසඳුම)
     c.execute("PRAGMA table_info(daily_wages)")
     columns_wage = [col[1] for col in c.fetchall()]
     if 'employee_name' not in columns_wage:
@@ -47,7 +43,6 @@ def load_employees():
     conn.close()
     return df['name'].tolist()
 
-# Initialize DB
 init_db()
 
 # ==========================================
@@ -97,7 +92,6 @@ if 'products' not in st.session_state:
 if 'daily_cart' not in st.session_state:
     st.session_state.daily_cart = []
 
-# --- System Alerts ---
 if 'price_confirmed' not in st.session_state:
     st.session_state.price_confirmed = False
 
@@ -108,16 +102,17 @@ if not st.session_state.price_confirmed:
         st.rerun()
 
 # ==========================================
-# Navigation Tabs
+# Navigation Tabs (දැන් Tabs 8 ක් ඇත - පඩිපත සමඟ)
 # ==========================================
-tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
     "🛍️ භාණ්ඩ", 
-    "📋 කුලී ලේඛනය", 
+    "📋 කුලී", 
     "👥 සේවකයන්",
     "💰 දෛනික වැටුප", 
+    "🧾 මාසික පඩිපත",
     "🗄️ ඉතිහාසය", 
     "📊 වියදම්/ලාභ", 
-    "⚙️ Control Panel"
+    "⚙️ සැකසුම්"
 ])
 
 # ==========================================
@@ -147,36 +142,38 @@ with tab2:
     st.dataframe(st.session_state.tasks, use_container_width=True, hide_index=True)
 
 # ==========================================
-# TAB 3: Employee Management
+# TAB 3: Employee Management (Preview සමඟ)
 # ==========================================
 with tab3:
     st.markdown("### 👥 සේවක කළමනාකරණය (Employee Profiles)")
-    st.write("සේවකයන්ගේ විස්තර සහ පින්තූර මෙහි ඇතුලත් කරන්න.")
+    st.write("සේවකයන්ගේ විස්තර සහ පින්තූර මෙහි ඇතුලත් කරන්න. පින්තූරය තේරූ සැනින් ඔබට එය බලාගත හැක.")
     
-    with st.form("add_employee_form", clear_on_submit=True):
-        col1, col2, col3 = st.columns([2, 2, 2])
-        with col1:
-            emp_name = st.text_input("සේවකයාගේ නම (Name):")
-        with col2:
-            emp_phone = st.text_input("දුරකථන අංකය (Phone):")
-        with col3:
-            emp_photo = st.file_uploader("පින්තූරය (Photo):", type=["jpg", "png", "jpeg"])
+    col1, col2, col3 = st.columns([2, 2, 2])
+    with col1:
+        emp_name = st.text_input("සේවකයාගේ නම (Name):")
+    with col2:
+        emp_phone = st.text_input("දුරකථන අංකය (Phone):")
+    with col3:
+        emp_photo = st.file_uploader("පින්තූරය (Photo):", type=["jpg", "png", "jpeg"])
+        # පින්තූරය තේරූ සැනින් Preview එක පෙන්වීම
+        if emp_photo is not None:
+            st.image(emp_photo, width=150, caption="Preview (පෙරදසුන)")
             
-        if st.form_submit_button("➕ සේවකයා ඇතුලත් කරන්න"):
-            if emp_name:
-                photo_bytes = emp_photo.read() if emp_photo else None
-                try:
-                    conn = sqlite3.connect('factory_data.db')
-                    c = conn.cursor()
-                    c.execute("INSERT INTO employees (name, phone, photo) VALUES (?, ?, ?)", (emp_name, emp_phone, photo_bytes))
-                    conn.commit()
-                    conn.close()
-                    st.success(f"{emp_name} සාර්ථකව පද්ධතියට ඇතුලත් කරන ලදී!")
-                    st.rerun()
-                except sqlite3.IntegrityError:
-                    st.error("මෙම නම ඇති සේවකයෙක් දැනටමත් සිටී. වෙනත් නමක් ලබා දෙන්න.")
-            else:
-                st.error("කරුණාකර සේවකයාගේ නම ඇතුලත් කරන්න.")
+    if st.button("➕ සේවකයා ඇතුලත් කරන්න", type="primary"):
+        if emp_name:
+            photo_bytes = emp_photo.read() if emp_photo else None
+            try:
+                conn = sqlite3.connect('factory_data.db')
+                c = conn.cursor()
+                c.execute("INSERT INTO employees (name, phone, photo) VALUES (?, ?, ?)", (emp_name, emp_phone, photo_bytes))
+                conn.commit()
+                conn.close()
+                st.success(f"{emp_name} සාර්ථකව පද්ධතියට ඇතුලත් කරන ලදී!")
+                st.rerun()
+            except sqlite3.IntegrityError:
+                st.error("මෙම නම ඇති සේවකයෙක් දැනටමත් සිටී. වෙනත් නමක් ලබා දෙන්න.")
+        else:
+            st.error("කරුණාකර සේවකයාගේ නම ඇතුලත් කරන්න.")
                 
     st.markdown("---")
     st.markdown("#### 🧑‍🤝‍🧑 දැනට සිටින සේවක ලැයිස්තුව")
@@ -220,7 +217,7 @@ with tab4:
     if not employees_list:
         st.warning("⚠️ කරුණාකර ප්‍රථමයෙන් '👥 සේවකයන්' අංශයෙන් සේවකයන් ඇතුලත් කරන්න.")
     else:
-        selected_emp_wage = st.selectbox("👷 වැඩ කළ සේවකයා තෝරන්න (Select Employee):", employees_list)
+        selected_emp_wage = st.selectbox("👷 වැඩ කළ සේවකයා තෝරන්න:", employees_list)
         st.markdown("---")
         
         col1, col2, col3 = st.columns([2, 2, 1])
@@ -235,12 +232,12 @@ with tab4:
         if st.button("➕ Add to List (ලැයිස්තුවට එකතු කරන්න)"):
             task_rate = st.session_state.tasks[st.session_state.tasks['Task Name (වැඩ කොටස)'] == selected_task].iloc[0]['Piece Rate / ගෙවන මුදල (Rs)']
             st.session_state.daily_cart.append({
-                "සේවකයා (Employee)": selected_emp_wage,
-                "වැඩ කොටස (Task)": selected_task,
-                "කාණ්ඩය (Category)": cat_to_filter,
-                "ප්‍රමාණය (Qty)": task_qty,
-                "ඒකක මිල (Rate)": task_rate,
-                "එකතුව (Total Rs)": task_rate * task_qty
+                "සේවකයා": selected_emp_wage,
+                "වැඩ කොටස": selected_task,
+                "කාණ්ඩය": cat_to_filter,
+                "ප්‍රමාණය": task_qty,
+                "ඒකක මිල": task_rate,
+                "එකතුව": task_rate * task_qty
             })
             st.success(f"{selected_task} ({task_qty}) ලැයිස්තුවට එකතු කළා!")
             st.rerun()
@@ -252,7 +249,7 @@ with tab4:
             cart_df = pd.DataFrame(st.session_state.daily_cart)
             st.dataframe(cart_df, use_container_width=True, hide_index=True)
             
-            grand_total = cart_df["එකතුව (Total Rs)"].sum()
+            grand_total = cart_df["එකතුව"].sum()
             st.markdown(f"### 💵 මුළු දෛනික වැටුප: Rs. {grand_total:,}")
             
             col_btn1, col_btn2 = st.columns(2)
@@ -263,7 +260,7 @@ with tab4:
                     today = datetime.now().strftime("%Y-%m-%d")
                     for item in st.session_state.daily_cart:
                         c.execute("INSERT INTO daily_wages (date, employee_name, task_name, category, qty, rate, total) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                                  (today, item['සේවකයා (Employee)'], item['වැඩ කොටස (Task)'], item['කාණ්ඩය (Category)'], item['ප්‍රමාණය (Qty)'], item['ඒකක මිල (Rate)'], item['එකතුව (Total Rs)']))
+                                  (today, item['සේවකයා'], item['වැඩ කොටස'], item['කාණ්ඩය'], item['ප්‍රමාණය'], item['ඒකක මිල'], item['එකතුව']))
                     conn.commit()
                     conn.close()
                     st.session_state.daily_cart = []
@@ -276,9 +273,47 @@ with tab4:
                     st.rerun()
 
 # ==========================================
-# TAB 5: History View
+# TAB 5: Monthly Payslip (මාසික පඩිපත - අලුත් අංශය)
 # ==========================================
 with tab5:
+    st.markdown("### 🧾 මාසික පඩිපත (Monthly Payslip)")
+    employees_list = load_employees()
+    if not employees_list:
+        st.warning("⚠️ කරුණාකර ප්‍රථමයෙන් සේවකයන් ඇතුලත් කරන්න.")
+    else:
+        col_p1, col_p2, col_p3 = st.columns(3)
+        with col_p1:
+            selected_emp_slip = st.selectbox("සේවකයා තෝරන්න:", employees_list, key="slip_emp")
+        with col_p2:
+            slip_month = st.selectbox("මාසය:", ["01 - ජනවාරි (Jan)", "02 - පෙබරවාරි (Feb)", "03 - මාර්තු (Mar)", "04 - අප්‍රේල් (Apr)", "05 - මැයි (May)", "06 - ජූනි (Jun)", "07 - ජූලි (Jul)", "08 - අගෝස්තු (Aug)", "09 - සැප්තැම්බර් (Sep)", "10 - ඔක්තෝබර් (Oct)", "11 - නොවැම්බර් (Nov)", "12 - දෙසැම්බර් (Dec)"])
+        with col_p3:
+            slip_year = st.selectbox("අවුරුද්ද:", [2024, 2025, 2026, 2027], index=2) # Default 2026
+
+        month_num = slip_month.split(" - ")[0]
+        target_prefix = f"{slip_year}-{month_num}"
+
+        if st.button("📄 පඩිපත සාදන්න (Generate Payslip)", type="primary"):
+            conn = sqlite3.connect('factory_data.db')
+            query = f"SELECT date AS 'දිනය', task_name AS 'වැඩ කොටස', qty AS 'ප්‍රමාණය', rate AS 'ඒකක මිල (Rs)', total AS 'එකතුව (Rs)' FROM daily_wages WHERE employee_name = '{selected_emp_slip}' AND date LIKE '{target_prefix}%'"
+            slip_df = pd.read_sql_query(query, conn)
+            conn.close()
+
+            if len(slip_df) > 0:
+                st.markdown("---")
+                st.markdown(f"## 🏭 මාසික පඩිපත - {slip_month.split(' - ')[1]} {slip_year}")
+                st.markdown(f"**සේවකයාගේ නම:** {selected_emp_slip}")
+                st.dataframe(slip_df, use_container_width=True, hide_index=True)
+
+                total_salary = slip_df['එකතුව (Rs)'].sum()
+                st.success(f"### 💵 ගෙවිය යුතු මුළු මාසික වැටුප: Rs. {total_salary:,}")
+                st.info("💡 Print කිරීමට: Ctl + P (හෝ බ්‍රව්සරයේ තිත් 3 ඔබා Print මෙනුව) භාවිතා කරන්න.")
+            else:
+                st.warning("මෙම මාසය සඳහා අදාළ සේවකයාට දත්ත කිසිවක් නොමැත.")
+
+# ==========================================
+# TAB 6: History View
+# ==========================================
+with tab6:
     st.markdown("### 🗄️ Daily Work History (දෛනික වැඩ ඉතිහාසය)")
     
     col_hist1, col_hist2 = st.columns(2)
@@ -287,7 +322,7 @@ with tab5:
         selected_date_str = selected_date.strftime("%Y-%m-%d")
     with col_hist2:
         all_emps = ["All (සියල්ල)"] + load_employees()
-        filter_emp = st.selectbox("සේවකයා අනුව පෙරන්න (Filter by Employee):", all_emps)
+        filter_emp = st.selectbox("සේවකයා අනුව පෙරන්න:", all_emps)
     
     conn = sqlite3.connect('factory_data.db')
     if filter_emp == "All (සියල්ල)":
@@ -308,8 +343,6 @@ with tab5:
             
         st.markdown("---")
         st.markdown("#### 🗑️ වැරදි වාර්තා මකා දැමීම (Delete Record)")
-        st.write("ඉහත වගුවේ ඇති **ID** අංකය පහතින් ලබා දී 'Delete' බොත්තම ඔබන්න.")
-        
         col_del1, col_del2 = st.columns([2, 1])
         with col_del1:
             del_id = st.number_input("මකන්න අවශ්‍ය වාර්තාවේ ID අංකය:", min_value=0, step=1)
@@ -331,9 +364,9 @@ with tab5:
         st.info("මෙම දිනට අදාල දත්ත කිසිවක් නොමැත.")
 
 # ==========================================
-# TAB 6: Cost & Profit Summary
+# TAB 7: Cost & Profit Summary
 # ==========================================
-with tab6:
+with tab7:
     st.markdown("### 📊 Production Cost & Profit Calculation")
     if len(st.session_state.products) == 0:
         st.warning("කරුණාකර ප්‍රථමයෙන් භාණ්ඩයක් ඇතුලත් කරන්න.")
@@ -391,9 +424,9 @@ with tab6:
             st.error(f"📉 Net Loss (අලාභය): Rs. {profit:,}")
 
 # ==========================================
-# TAB 7: Control Panel
+# TAB 8: Control Panel
 # ==========================================
-with tab7:
+with tab8:
     st.markdown("### ⚙️ Factory Data Control Panel")
     
     st.markdown("#### 📋 Update Piece Rates (කාණ්ඩ අනුව මිල ගණන්)")
